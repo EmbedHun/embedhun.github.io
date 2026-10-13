@@ -1,0 +1,74 @@
+---
+layout: post
+title: "[임베디드 디버깅] Cortex-M55/M85 ITCM 코드 실행 시 디버거 C 소스 코드 매핑 불일치 해결 방안"
+date: 2026-07-08 09:00:00 +0900
+description: "초고속 제어가 요구되는 모터 제어나 리얼타임 신호처리 펌웨어에서는 코드를 플래시(Flash)가 아닌 ITCM(Instruction Tightly-Coupled Memory) 영역에 적재하여 Zero wait-state 속도로 실행합니다."
+naver_logno: 224340435734
+---
+{% raw %}
+<p>초고속 제어가 요구되는 모터 제어나 리얼타임 신호처리 펌웨어에서는 코드를 플래시(Flash)가 아닌 ITCM(Instruction Tightly-Coupled Memory) 영역에 적재하여 Zero wait-state 속도로 실행합니다.</p>
+<p>하지만 디버거를 연결하여 디버깅을 시작하면, 코드가 엉뚱한 라인에서 단계를 밟거나 디버거 윈도우 상의 C 소스 매핑이 어긋나 멈춰버리는 앨리어싱(Aliasing) 버그를 겪곤 합니다.</p>
+<p>이번 가이드에서는 Cortex-M55/M85(예: Nuvoton M55M1 시리즈) 코어 환경에서 ITCM 코드 적재 시 디버거 싱크 불일치가 발생하는 핵심 물리적 요인과 이에 대한 기술적 대책을 정리합니다.</p>
+<p>---</p>
+<p>▷ 1. 현상의 주요 요인: DWARF 디버그 심볼과 물리 메모리 불일치</p>
+<p>1. 디버그 기호(Symbol) 정적 매핑:</p>
+<p>일반적으로 컴파일러와 링커는 실행 파일(ELF/AXF)을 빌드할 때 소스 코드의 메모리 주소를 로드 주소(Flash 주소) 기준으로 DWARF 디버그 심볼 테이블에 기록합니다.</p>
+<p>2. 런타임 코드 재배치(Relocation):</p>
+<p>펌웨어 시동 코드(startup.s 또는 시스템 초기화)는 플래시에 저장되어 있던 함수 바이너리를 ITCM 영역(SRAM 물리 메모리 맵 상의 다른 대역)으로 하드웨어 복사하여 동작을 시작합니다.</p>
+<p>3. 디버거의 동기화 소실:</p>
+<p>이때 디버거는 PC(Program Counter) 레지스터가 ITCM 대역을 가리키는 시점에서, ELF에 등록되어 있던 플래시 쪽 로드 주소를 대조하여 C 코드를 매핑하려 시도합니다. 이 매핑 주소 앨리어스 차이로 인해 디버거는 실제 실행과 무관한 C 텍스트 라인을 임의로 가리키며 튕기는 현상이 연출됩니다.</p>
+<p>---</p>
+<p>▷ 2. FAE 조치 가이드 및 해결 방안</p>
+<p>#### 1) 링커 스크립트 내 로드-실행 주소의 완벽한 분리 (Scatter Loading)</p>
+<p>Keil MDK의 스캐터 파일(.sct) 또는 GCC 링커 스크립트(.ld)에서 ITCM 적재 코드가 로드 주소(Load Address)와 실행 주소(Execution Address)를 완벽히 식별하도록 구조화해야 합니다.</p>
+<p>`text</p>
+<p>// Keil Scatter File 예시</p>
+<p>LR_ROM 0x00100000 0x00200000 {    ; 로드 주소 (Flash 영역)</p>
+<p>ER_ROM 0x00100000 0x00100000 {</p>
+<p>*.o (RESET, +First)</p>
+<p>*(InRoot$$Sections)</p>
+<p>startup_M55M1.o</p>
+<p>}</p>
+<p>ITCM_EXEC 0x00000000 0x00010000 {  ; 실행 주소 (ITCM 대역)</p>
+<p>motor_control.o (+RO)          ; 초고속 실행 대상 모듈</p>
+<p>}</p>
+<p>}</p>
+<p>`</p>
+<p>위와 같이 링커 파일이 빌드 시점에 ITCM_EXEC의 실행 베이스 주소를 0x00000000 으로 정확하게 심볼 테이블에 입력해 두어야 디버거가 올바른 DWARF 심볼 주소로 역매핑을 해냅니다.</p>
+<p>#### 2) I-Cache / D-Cache 동기화 처리 (Cache Coherency)</p>
+<p>Cortex-M55/M85 등 고성능 코어는 명령어 캐시(I-Cache) 및 데이터 캐시(D-Cache)가 활성화되어 있는 상태에서 CPU가 플래시 데이터를 SRAM(ITCM)으로 쓰게 되면, 캐시 메모리와 물리 메모리 간의 일치성이 꼬일 수 있습니다.</p>
+<p>런타임 복사를 완료한 직후 및 디버거 가동 전에 코어가 반드시 메모리 배리어 및 캐시 클린 명령을 받도록 초기화 코드를 구축해야 합니다.</p>
+<p>`c</p>
+<p>// ARM Cortex 코어 표준 레지스터 캐시 동기화 API 활용</p>
+<p>SCB_CleanDCache();</p>
+<p>SCB_InvalidateICache();</p>
+<p>__DSB(); // Data Synchronization Barrier</p>
+<p>__ISB(); // Instruction Synchronization Barrier</p>
+<p>`</p>
+<p>#### 3) 디버거 초기화 스크립트(Debugger Initialization Script) 연동</p>
+<p>Keil 이나 IAR 등의 디버깅 탭 옵션에서 Initialization File (*.ini) 스크립트를 연결하여 디버깅 실행 시 PC 레지스터를 수동으로 강제 동기화해 주는 스크립트를 로드해 줍니다.</p>
+<p>`text</p>
+<p>// Keil MDK debug.ini 예시</p>
+<p>FUNC void Setup (void) {</p>
+<p>SP = _RDWORD(0x00100000);  // 스택 포인터 로드</p>
+<p>PC = _RDWORD(0x00100004);  // 엔트리 주소 로드</p>
+<p>}</p>
+<p>Setup();</p>
+<p>`</p>
+<p>이 세 가지 단계를 연동하면 고속 제어와 초정밀 디버깅 소스 트래킹을 에러 없이 완벽하게 양립하여 구동할 수 있습니다.</p>
+<p>---</p>
+<h2>ARM Cortex-M55 개발자 가이드 공식 문서</h2>
+<p>- 바로가기 링크: <a href="https://developer.arm.com/Processors/Cortex-M55">https://developer.arm.com/Processors/Cortex-M55</a></p>
+<p><a href="https://developer.arm.com/Processors/Cortex-M55">ARM Support Redirector</a></p>
+<h2>Nuvoton M55M1 MPU 제품 상세 소개</h2>
+<p>- 바로가기 링크: <a href="https://www.nuvoton.com/products/microcontrollers/arm-cortex-m55-mcus/m55m1-series/">https://www.nuvoton.com/products/microcontrollers/arm-cortex-m55-mcus/m55m1-series/</a></p>
+<p>---</p>
+<p>📊</p>
+<p>---</p>
+<p>💡</p>
+<p>더 많은 기술 자료와 Nuvoton 개발 팁을 확인하실 수 있습니다.</p>
+<p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
+<p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>
+<hr>
+<p>이 글은 네이버 블로그에도 있습니다: <a href="https://blog.naver.com/nuvoton-dev/224340435734">https://blog.naver.com/nuvoton-dev/224340435734</a></p>
+{% endraw %}

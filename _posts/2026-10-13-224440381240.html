@@ -1,0 +1,128 @@
+---
+layout: post
+title: "MA35D1 pack 이미지를 SD/eMMC 에 쓰기 - NuWriter Write 사용법"
+date: 2026-10-13 09:00:00 +0900
+description: "이전 글에서 Pack 으로 여러 이미지를 파일 하나로 묶는 방법을 다뤘습니다. 이번에는 그 pack 파일을 보드의 저장 장치에 쓰는 Write 입니다. 예제로는 Nuvoton 이 배포한 NuMaker-SOM-MA35D16A81 용 pack 파일을 사용했습니다."
+naver_logno: 224440381240
+---
+{% raw %}
+<p>이전 글에서 Pack 으로 여러 이미지를 파일 하나로 묶는 방법을 다뤘습니다. 이번에는 그 pack 파일을 보드의 저장 장치에 쓰는 Write 입니다. 예제로는 Nuvoton 이 배포한 NuMaker-SOM-MA35D16A81 용 pack 파일을 사용했습니다.</p>
+<p>이 글은 보드를 연결하지 않은 PC 에서 확인한 내용입니다. pack 파일을 풀어 내용을 확인하는 것과 NuWriter 화면, 명령 형식까지 다루고, 실제로 보드에 쓴 결과는 싣지 못했습니다. 이 글에서 &quot;매뉴얼&quot;이라고만 적은 것은 Nuvoton 의 MA35 Series NuWriter User Manual Rev 1.05 (파일 이름 UM_EN_MA35_NuWriter.pdf) 입니다. 보드 사용자 매뉴얼(NuMaker-HMI-MA35D1-S1 User Manual)과 MA35D1 Buildroot Quick Start 는 그때마다 이름을 적었습니다.</p>
+<h2>1. 예제 파일</h2>
+<p>파일 이름은 pack-nvt-image-qt5-numaker-som-ma35d16a81-sdcard_20230321.bin 이고 크기는 670,100,896 바이트입니다. 함께 들어 있는 Readme.txt 에는 이 패키지를 NuWriter_MA35 로 SD1(eMMC) 에 쓰라고 적혀 있습니다.</p>
+<p>파일 맨 앞 4바이트는 20 54 56 4E 입니다. 매뉴얼 5장의 pack 이미지 형식에 나오는 마커(NVT)입니다.</p>
+<h2>2. pack 파일 안에 무엇이 들어 있나</h2>
+<p>쓰기 전에 pack 파일을 풀어서 내용을 볼 수 있습니다. 명령은 아래와 같고 보드 없이 PC 에서 실행됩니다.</p>
+<p>NuWriter_MA35.exe -o unpack -p pack-nvt-image-qt5-numaker-som-ma35d16a81-sdcard_20230321.bin</p>
+<p>실행하면 아래처럼 출력되고 월일-시각 이름의 폴더에 img0.bin 부터 img8.bin 까지 9개 파일이 만들어졌습니다.</p>
+<p>Waiting for unpack Images ...</p>
+<p>check pack file crc32 ...</p>
+<p>Create symbolic folder unpack failed</p>
+<p>Unpack images to directory 1013-153801947275 complete</p>
+<p>&quot;Create symbolic folder unpack failed&quot; 가 표시됐지만 파일은 모두 만들어졌습니다. 매뉴얼 2장은 &quot;Fail to create symbolic folder&quot; 문제가 있으면 Windows 의 Developer Mode 를 켜라고 안내합니다. 실제로 Developer Mode 를 켜고 같은 명령을 다시 실행하니 이 메시지가 나오지 않았고, 결과 폴더를 가리키는 unpack 링크가 만들어졌습니다. 이 글의 실행 결과는 켜기 전의 것입니다.</p>
+<p>9개 이미지의 크기와, 저장 장치에 쓰일 위치(offset)는 다음과 같습니다. 각 파일이 무엇인지는 파일 내용을 직접 열어 확인한 것만 적었습니다.</p>
+<ul>
+<li>img0 : 512 바이트, offset 0x0. 마지막 2바이트가 55 AA 이고 파티션 항목이 1개 있습니다. 그 파티션의 시작 위치가 0x2000000 으로 img8 의 offset 과 같습니다</li>
+<li>img1 : 200 바이트, offset 0x400. Convert 글에서 만든 것과 같은 형식의 부트 헤더입니다</li>
+<li>img2 : 2,006 바이트, offset 0x20000. 디바이스 트리이고 안에 Nuvoton MA35D1 EVB board 라는 문자열이 있습니다</li>
+<li>img3 : 54,566 바이트, offset 0x30000. 안에 plat/nuvoton/ma35d1/ma35d1_bl2_setup.c, v2.3(release) 문자열이 있습니다</li>
+<li>img4 : 65,536 바이트, offset 0x40000. U-Boot 환경 변수입니다. bootcmd=run distro_bootcmd, bootdelay=3, baudrate=115200 으로 시작합니다</li>
+<li>img5 : 1,388,389 바이트, offset 0xC0000. 안에 BL31 문자열과 U-Boot 2020.07 문자열이 있습니다. 매뉴얼 7.5절은 BL31, BL32, BL33 을 하나로 합친 파일을 FIP 라고 설명합니다</li>
+<li>img6 : 40,797 바이트, offset 0x2C0000. 디바이스 트리이고 안에 Nuvoton MA35D1-SOM 이라는 문자열이 있습니다</li>
+<li>img7 : 14,053,888 바이트, offset 0x300000. 리눅스 커널입니다. 안에 Linux version 5.10.140 문자열이 있습니다</li>
+<li>img8 : 654,494,720 바이트, offset 0x2000000. 0x438 위치에 ext 파일시스템 표식(53 EF)이 있습니다</li>
+</ul>
+<p>img1 은 부트 헤더이므로 NuWriter 로 내용을 볼 수 있습니다.</p>
+<p>NuWriter_MA35.exe -o showhdr -c img1.bin</p>
+<p>출력에서 이미지 부분만 옮기면 아래와 같습니다. 헤더에 등록된 이미지는 2개이고 offset 이 img2, img3 의 위치와 같습니다. 매뉴얼 6.3.1절에서 type 3 은 디바이스 트리 같은 data 이미지, type 4 는 loader 이미지입니다.</p>
+<p>Version: 0x20210107</p>
+<p>Entry point: 0x28000000</p>
+<p>Image count: 2</p>
+<p>==== Image 0 ====</p>
+<p>Offset: 0x20000</p>
+<p>Load addr: 0x28023000</p>
+<p>Size: 0x7d6</p>
+<p>Type: 3</p>
+<p>==== Image 1 ====</p>
+<p>Offset: 0x30000</p>
+<p>Load addr: 0x28000000</p>
+<p>Size: 0xd526</p>
+<p>Type: 4</p>
+<p>Convert 글에서 header.bin 을 저장 장치의 어디에 쓰는지는 확인하지 못했다고 적었습니다. 이 배포 pack 파일에서는 부트 헤더가 offset 0x400 에 놓여 있습니다. 다른 저장 장치나 다른 이미지에서도 같은지는 확인하지 못했습니다.</p>
+<h2>3. 보드에 쓰는 전체 순서</h2>
+<p>Write 는 PC 에서 명령만 내린다고 되는 작업이 아니고, 보드를 먼저 NuWriter 와 통신할 수 있는 상태로 만들어야 합니다. Nuvoton 의 MA35D1 Buildroot Quick Start 자료에 나오는 SD 카드 프로그래밍 절차를 순서대로 옮기면 다음과 같습니다. 먼저 보드에서 만질 곳의 위치입니다.</p>
+<figure><img src="/assets/img/224440381240_01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>보드 앞면(왼쪽)과 뒷면(오른쪽). Debug Port, SD Card Slot, USB Device, Power-On Switch 는 앞면에, Reset Button 과 RTC Button 은 뒷면에 있습니다. (출처: Nuvoton MA35D1 Buildroot Quick Start)</p>
+<ul>
+<li>전원을 연결합니다</li>
+<li>디버그 포트를 연결합니다. 매뉴얼 3.1절에 따르면 UART0 은 디버그 메시지를 보는 용도이고 데이터 전송에는 쓰이지 않습니다</li>
+<li>USB device 포트를 PC 와 연결합니다. 매뉴얼 3.1절에 따르면 IBR 은 USB port 0 으로 NuWriter 와 통신합니다</li>
+<li>SD 카드를 꽂습니다</li>
+<li>Power-On-Setting 스위치를 USBD 부팅으로 맞춥니다. Buildroot Quick Start 에서는 PG0, PG2, PG3 을 High 로 설정합니다. 매뉴얼 Table 3-1 에서 PG[3:2] = 11 은 Boot from USB, PG[0] = 1 은 Secure Boot Disabled 입니다</li>
+<li>RTC 버튼과 리셋 버튼을 누릅니다. 두 버튼은 보드 뒷면에 있습니다. 디버그 포트에 MA35D1 IBR, USBD Boot 메시지가 나옵니다</li>
+<li>NuWriter 의 Attach 탭에서 보드에 맞는 DDR File 을 고르고 Attach 를 누릅니다. 성공하면 로그 마지막에 Successfully get info from 1 device(s) 가 표시됩니다</li>
+<li>Download 탭에서 SD/EMMC 를 고르고, pack 파일을 고르고, Image type 을 Pack 으로 한 뒤 Write 를 누릅니다</li>
+<li>진행률이 Programming 9/9: 100% 까지 올라가고 Successfully programmed 1 device(s) 가 표시되면 끝입니다</li>
+</ul>
+<p>즉 보드를 저장 장치가 아니라 USB 로 부팅시켜 놓고, Attach 로 연결한 다음에 Write 를 하는 순서입니다. 아래 4장부터는 이 순서의 마지막 단계인 Write 를 자세히 봅니다.</p>
+<p>주의할 점이 두 가지 있습니다. 첫째, 위 절차는 베이스 보드의 SD 카드 슬롯(SD0)에 꽂은 SD 카드에 쓰는 경우라 PG0, PG2, PG3 만 High 로 둡니다. NuMaker-HMI-MA35D1-S1 사용자 매뉴얼에 따르면 SW4 의 7번(PG6)이 Low 이면 SD0/eMMC0, High 이면 SD1/eMMC1 이고, eMMC1 은 SOM 보드에 실장된 eMMC 입니다. NuWriter 매뉴얼 3.2절도 SD1 에 쓰려면 PG[7:6] 을 01 로 설정하라고 설명합니다. 이 글의 예제 파일은 Readme 에 대상이 SD1(eMMC) 로 적혀 있으므로 SOM 의 eMMC 에 쓸 때는 PG6 도 High 로 맞춰야 하는 것으로 읽힙니다. 이 조합은 보드로 직접 확인하지 못했습니다.</p>
+<p>둘째, NuMaker-HMI-MA35D1-S1 사용자 매뉴얼(Rev 1.06)에는 베이스 보드 V2.1 에서 RTC Wakeup 키(SW3)가 실장되지 않는다고 적혀 있습니다. 위 사진은 V2.0 보드입니다. 보드 버전에 따라 RTC 버튼이 없을 수 있습니다.</p>
+<h2>4. Write 명령 형식</h2>
+<p>매뉴얼 6.6절의 형식은 아래와 같습니다.</p>
+<p>nuwriter.py -o OPTION -w DEVICE OFFSET FILE</p>
+<ul>
+<li>DEVICE : 쓸 대상입니다. 매뉴얼에는 ddr, sram, sd, spinand, spinor, nand, otp 가 나옵니다</li>
+<li>OFFSET : 저장 장치 안에서 쓸 위치입니다. pack 이미지나 OTP 를 쓸 때는 적지 않습니다. pack 이미지 안에 offset 정보가 이미 들어 있기 때문입니다</li>
+<li>FILE : 이미지 하나, pack 이미지, 또는 OTP 용 JSON 파일입니다</li>
+</ul>
+<p>매뉴얼 예제에는 -w emmc pack.img 처럼 emmc 라는 이름도 나옵니다. NuWriter 소스를 보면 sd 와 emmc 는 같은 장치 값으로 처리됩니다. 반면 sd1 이라고 적으면 &quot;Unknown storage media SD1&quot; 이 출력됐습니다. SD0 과 SD1 중 어느 쪽에 쓸지는 명령이 아니라 보드의 Power-On-Setting 으로 정합니다. 매뉴얼 3.2절은 SD1 에 쓰려면 PG[7:6] 을 01 로 설정하라고 설명합니다.</p>
+<p>그래서 이 예제 파일을 쓰는 명령은 아래와 같습니다.</p>
+<p>NuWriter_MA35.exe -w emmc pack-nvt-image-qt5-numaker-som-ma35d16a81-sdcard_20230321.bin</p>
+<p>매뉴얼 6.2절에 따르면 convert 와 pack 을 뺀 모든 명령은 먼저 Attach 로 보드와 연결되어 있어야 합니다. 보드 없이 위 명령을 실행하면 &quot;Device not found&quot; 가 출력됩니다.</p>
+<h2>5. 옵션 - nocrc 와 verify</h2>
+<p>pack 이미지에는 데이터가 맞는지 확인하는 CRC 가 들어 있습니다. 매뉴얼은 쓸 때마다 CRC 를 다시 계산해야 하고, nocrc 옵션으로 이 검사 시간을 줄일 수 있다고 설명합니다.</p>
+<p>NuWriter_MA35.exe -o nocrc -w emmc pack.img</p>
+<p>CRC 검사에 걸리는 시간은 unpack 으로 재 볼 수 있었습니다. 같은 670 MB 파일을 같은 PC 에서 풀었을 때 CRC 검사를 하면 약 68초, nocrc 옵션을 주면 약 3초였습니다. 보드에 쓸 때의 시간은 재지 못했습니다.</p>
+<p>NuWriter_MA35.exe -o nocrc -p pack-nvt-image-qt5-numaker-som-ma35d16a81-sdcard_20230321.bin</p>
+<p>verify 옵션은 쓰기가 끝난 뒤 이미지를 다시 읽어서 내용을 비교하고 결과를 콘솔에 알려 줍니다. 매뉴얼은 대상이 ddr, sram, otp 가 아닐 때 쓸 수 있다고 설명합니다(원문에는 otp 가 &quot;opt&quot; 로 적혀 있습니다). 매뉴얼의 예제는 아래와 같습니다.</p>
+<p>nuwriter.py -o verify -w sd 0x100000 test.bin</p>
+<h2>6. GUI 로 쓰기 - Download 탭</h2>
+<p>GUI 에서는 Download 탭을 엽니다. 탭 안에 저장 장치별 페이지가 있고 페이지마다 Write, Read 같은 칸이 있습니다.</p>
+<figure><img src="/assets/img/224440381240_02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Download 탭의 NAND 페이지. Write, Read, Erase 칸이 있습니다.</p>
+<p>매뉴얼 7.2.1절의 쓰기 순서는 다음과 같습니다. 매뉴얼은 NAND 를 예로 들었고 다른 저장 장치도 방법이 비슷하다고 설명합니다.</p>
+<ul>
+<li>저장 장치 페이지를 고릅니다</li>
+<li>Image file 의 Browse 로 이미지 파일을 고릅니다</li>
+<li>Image type 을 파일에 맞게 고릅니다</li>
+<li>Image addr 을 적습니다. Image type 이 Data 일 때만 필요합니다</li>
+<li>Write 를 누릅니다</li>
+</ul>
+<p>예제 파일을 SD/EMMC 페이지에 넣은 모습입니다. Image type 을 Pack 으로 고르면 Image addr 칸이 비활성으로 바뀌고 CRC Disabled 를 체크할 수 있게 됩니다. CRC Disabled 는 5장의 nocrc 옵션에 해당합니다. SD/EMMC 페이지에는 Write 와 Read 만 있고 Erase 칸은 없었습니다.</p>
+<figure><img src="/assets/img/224440381240_03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>SD/EMMC 페이지에 pack 파일을 넣고 Image type 을 Pack 으로 고른 모습</p>
+<p>Image type 을 Data 로 바꾸면 반대로 Image addr 칸이 열리고 CRC Disabled 가 비활성이 됩니다. 이미지 하나만 따로 쓸 때 사용하는 방식입니다.</p>
+<figure><img src="/assets/img/224440381240_04.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Image type 을 Data 로 고르면 Image addr 을 적을 수 있습니다.</p>
+<p>보드를 연결하지 않고 Write 를 누르면 아래 로그 창에 Device not found 가 표시됩니다.</p>
+<figure><img src="/assets/img/224440381240_05.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>보드가 연결되지 않은 상태에서 Write 를 누른 결과</p>
+<h2>7. 이미지 하나만 다시 쓸 때</h2>
+<p>매뉴얼 7.5절은 파일 하나만 저장 장치에 쓰려면 pack.json 을 참고해 그 이미지의 offset 을 알아내면 된다고 설명합니다. Image type 을 Data 로 고르고 Image addr 에 offset 을 적은 뒤 Write 를 누르는 순서입니다.</p>
+<p>pack.json 이 없어도 2장처럼 pack 파일을 풀거나 내용을 읽으면 이미지별 offset 을 알 수 있습니다. 이 예제 파일에서 커널(img7)의 offset 은 0x300000 이었습니다.</p>
+<p>매뉴얼은 U-Boot 만 다시 빌드했더라도 TF-A 를 다시 빌드해 새 FIP 를 얻은 뒤 그 FIP 를 써야 한다고 설명합니다. BL31, BL32, BL33 이 FIP 하나로 합쳐져 있기 때문입니다.</p>
+<h2>정리</h2>
+<ul>
+<li>pack 이미지는 offset 을 적지 않고 -w 장치이름 파일 형식으로 씁니다. offset 정보가 pack 이미지 안에 들어 있습니다.</li>
+<li>SD 와 eMMC 는 장치 이름으로 sd 또는 emmc 를 쓰고, SD0 과 SD1 의 선택은 Power-On-Setting PG[7:6] 으로 합니다.</li>
+<li>쓰기 전에 보드를 USB 부팅으로 맞추고 Attach 가 되어 있어야 합니다.</li>
+<li>nocrc 옵션(GUI 의 CRC Disabled)은 pack 이미지의 CRC 검사를 건너뜁니다.</li>
+<li>-o unpack -p 로 pack 파일을 풀면 안에 든 이미지와 각 offset 을 확인할 수 있습니다.</li>
+</ul>
+<p>출처: Nuvoton MA35 Series NuWriter User Manual Rev 1.05 (2장, 3.1절, 3.2절, 5장, 6.2절, 6.3.1절, 6.6절, 7.2절, 7.2.1절, 7.5절), MA35D1 Buildroot Quick Start Rev1.01, NuMaker-HMI-MA35D1-S1 User Manual Rev 1.06, NuWriter v0.37 실행 결과</p>
+<p>💡 더 많은 Nuvoton 기술 자료와 Q&amp;A 는 네이버 카페에서 확인하실 수 있습니다.</p>
+<p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
+<p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>
+<hr>
+<p>이 글은 네이버 블로그에도 있습니다: <a href="https://blog.naver.com/nuvoton-dev/224440381240">https://blog.naver.com/nuvoton-dev/224440381240</a></p>
+{% endraw %}

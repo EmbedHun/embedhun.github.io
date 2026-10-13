@@ -1,0 +1,105 @@
+---
+layout: post
+title: "MA35D1 부트 헤더(header.bin) 만들기 - NuWriter Convert 사용법"
+date: 2026-10-13 09:00:00 +0900
+description: "MA35D1 의 IBR(칩 안에 들어 있는 Internal Boot ROM)은 저장 장치에 쓰여 있는 부트 헤더(header.bin)를 읽고 어떤 이미지를 불러올지 알아냅니다. 헤더에는 이미지가 저장 장치의 어디에 있는지, 메모리 어느 주소에 올릴지, 어디서부터 실행할"
+naver_logno: 224440257818
+---
+{% raw %}
+<p>MA35D1 의 IBR(칩 안에 들어 있는 Internal Boot ROM)은 저장 장치에 쓰여 있는 부트 헤더(header.bin)를 읽고 어떤 이미지를 불러올지 알아냅니다. 헤더에는 이미지가 저장 장치의 어디에 있는지, 메모리 어느 주소에 올릴지, 어디서부터 실행할지가 들어 있습니다.</p>
+<p>NuWriter 의 Convert 는 이 헤더를 만드는 기능입니다. 사람이 읽을 수 있는 설정 파일(header.json)에 이미지 정보를 적으면 NuWriter 가 header.bin 으로 바꿔 줍니다. 이렇게 만든 header.bin 은 보드의 저장 장치에 써 넣어야 IBR 이 읽을 수 있습니다. 쓰는 일은 NuWriter 의 Write(GUI 의 Download 탭)로 하고, header.bin 을 만드는 Convert 자체는 보드 없이 PC 에서 실행합니다.</p>
+<figure><img src="/assets/img/224440257818_01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Convert 가 하는 일</p>
+<p>이 글은 Convert 를 직접 실행해 본 기록입니다. 이미지는 내용 없는 연습용 파일이라 보드에서 부팅해 본 것은 아닙니다. header.bin 을 만드는 데까지만 다루고, 보드에 쓰는 과정은 Write 사용법 글에서 따로 다뤘습니다. header.bin 을 쓸 저장 장치 위치는 Nuvoton 이 배포한 NuMaker-SOM-MA35D16A81 용 SD/eMMC pack 파일을 풀어서 확인했고, 그 파일에서는 부트 헤더가 offset 0x400 에 놓여 있었습니다. 다른 저장 장치나 다른 이미지에서도 같은지는 확인하지 못했습니다. 이 글에서 &quot;매뉴얼&quot;이라고만 적은 것은 Nuvoton 의 MA35 Series NuWriter User Manual Rev 1.05 (파일 이름 UM_EN_MA35_NuWriter.pdf) 입니다.</p>
+<h2>1. Convert 탭 열기</h2>
+<p>메뉴에서 Mode → Develop mode 를 선택하면 Convert 탭이 나타납니다. Convert 탭 안에는 Convert header.json 과 Convert otp.json 이 있고 이 글은 header.json 쪽만 다룹니다.</p>
+<figure><img src="/assets/img/224440257818_02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Convert 탭. header.json 을 고르는 Browse 와 Generate header.json, Read header.json 버튼이 있습니다.</p>
+<h2>2. header.json 에 적는 것</h2>
+<p>header.json 에서 직접 정해 줘야 하는 항목은 아래와 같습니다. 매뉴얼 6.3.1절 기준입니다.</p>
+<ul>
+<li>image : 헤더에 기록할 이미지 목록이고 최대 4개입니다. 이미지마다 file(파일 이름), offset(저장 장치 안의 위치), loadaddr(올릴 DDR 또는 SRAM 주소), type(종류)을 적습니다</li>
+<li>type 값 : 1 = TSI 이미지, 2 = system setting 이미지, 3 = 디바이스 트리 같은 data 이미지, 4 = loader 이미지</li>
+<li>entrypoint : 이미지를 모두 읽어 들이고 검증한 뒤 IBR 이 실행을 넘기는 주소</li>
+<li>secureboot : yes 로 하면 secure boot 용 헤더를 만듭니다</li>
+<li>version : 사용자가 정하는 32비트 버전 번호</li>
+<li>spiinfo : SPI NOR/NAND 플래시의 속성입니다. 다른 저장 장치로 부팅하면 0 으로 둘 수 있고 값은 플래시 데이터시트에서 찾습니다</li>
+<li>env : U-Boot 환경 변수를 적은 텍스트 파일(file)과 저장 장치의 블록 크기(blksize). 선택 항목입니다</li>
+</ul>
+<p>연습용으로 아래 파일을 만들었습니다. 이미지는 loader.bin(8KB)과 ma35d1.dtb(4KB) 두 개이고 offset 과 loadaddr 은 매뉴얼 예시 값을 그대로 썼습니다.</p>
+<p>{&quot;header&quot;: {</p>
+<p>&quot;version&quot;: &quot;0x20200622&quot;, &quot;secureboot&quot;: &quot;no&quot;, &quot;entrypoint&quot;: &quot;0x90000000&quot;,</p>
+<p>&quot;spiinfo&quot;: {&quot;pagesize&quot;: &quot;2048&quot;, &quot;sparearea&quot;: &quot;64&quot;, &quot;pageperblk&quot;: &quot;64&quot;, &quot;quadread&quot;: &quot;0x6B&quot;, &quot;readsts&quot;: &quot;0x05&quot;,</p>
+<p>&quot;writests&quot;: &quot;0x01&quot;, &quot;stsvalue&quot;: &quot;0x02&quot;, &quot;dummy1&quot;: &quot;0&quot;, &quot;dummy2&quot;: &quot;1&quot;, &quot;suspintvl&quot;: &quot;1&quot;},</p>
+<p>&quot;image&quot;: [</p>
+<p>{&quot;offset&quot;: &quot;0x500000&quot;, &quot;loadaddr&quot;: &quot;0x28030000&quot;, &quot;type&quot;: &quot;2&quot;, &quot;file&quot;: &quot;loader.bin&quot;},</p>
+<p>{&quot;offset&quot;: &quot;0x50A000&quot;, &quot;loadaddr&quot;: &quot;0x88000000&quot;, &quot;type&quot;: &quot;3&quot;, &quot;file&quot;: &quot;ma35d1.dtb&quot;}]},</p>
+<p>&quot;env&quot;: {&quot;file&quot;: &quot;uboot-env.txt&quot;, &quot;blksize&quot;: &quot;0x10000&quot;}}</p>
+<p>uboot-env.txt 에는 baudrate=115200, bootdelay=3, bootcmd=echo hello 세 줄을 넣었습니다.</p>
+<h2>3. 실행하고 결과 보기</h2>
+<p>GUI 에서는 header.json 의 Browse 로 파일을 고르고 Convert 를 누릅니다. CLI 로는 아래와 같습니다.</p>
+<p>NuWriter_MA35.exe -c header.json</p>
+<figure><img src="/assets/img/224440257818_03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Convert 실행 후 로그. 결과가 만들어진 폴더 이름이 표시됩니다.</p>
+<p>월일-시각 이름의 폴더가 만들어지고 그 안에 두 파일이 생겼습니다.</p>
+<ul>
+<li>header.bin : 200 바이트. 부트 헤더입니다</li>
+<li>uboot-env.bin : 65536 바이트(0x10000). env 에 적은 blksize 와 같은 크기이고 환경 변수 텍스트 뒤는 0xFF 로 채워집니다</li>
+</ul>
+<p>&quot;Create symbolic folder conv failed&quot; 가 먼저 표시됐지만 파일은 정상적으로 만들어졌습니다. 앞 글의 Pack 때도 같은 메시지가 나왔습니다. 이 메시지는 conv 라는 이름의 링크를 만들지 못했다는 뜻입니다. 매뉴얼 2장은 &quot;Fail to create symbolic folder&quot; 문제가 있으면 Windows 의 Developer Mode 를 켜라고 안내합니다. 실제로 Developer Mode 를 켜고 같은 명령을 다시 실행하니 이 메시지가 나오지 않았고, 결과 폴더를 가리키는 conv 링크가 만들어졌습니다. 이 글의 실행 결과는 켜기 전의 것입니다. GUI 로 만든 두 파일은 CLI 결과와 바이트 단위로 같았습니다.</p>
+<p>header.bin 안에 json 에 적은 값이 그대로 들어 있는 것도 확인했습니다. 자세한 위치는 아래 6번에 정리했습니다.</p>
+<h2>4. secureboot 를 yes 로 바꾸면</h2>
+<p>secureboot 만 yes 로 바꾸고 키는 json 에 적지 않은 채 Convert 를 실행했습니다. 매뉴얼대로 키가 비어 있으면 NuWriter 가 키를 만들어 주었고 폴더에 아래 파일이 생겼습니다.</p>
+<ul>
+<li>header.bin : 크기는 200 바이트로 같고 secureboot 가 no 일 때 0xFF 이던 서명 칸(이미지마다 64바이트)이 값으로 채워졌습니다</li>
+<li>header_key.txt : AES key, ECDSA private key, ECDSA public key 가 들어 있습니다</li>
+<li>enc_loader.bin, enc_ma35d1.dtb : 원본과 크기는 같고 내용은 다릅니다</li>
+<li>uboot-env.bin : secureboot 가 no 일 때와 같은 이름과 크기</li>
+</ul>
+<p>매뉴얼은 enc_ 파일을 부트 이미지(TSI, BL2)용으로 설명하는데 이번에는 type 2 와 3 두 이미지 모두 enc_ 파일이 만들어졌습니다. 이 차이의 이유는 확인하지 못했습니다. header_key.txt 에는 개인 키가 들어 있으니 저장소에 올리지 않도록 주의해야 합니다.</p>
+<h2>5. json 을 직접 쓰기 싫을 때 - Generate header.json</h2>
+<p>2장에서 json 에 적은 항목을 칸으로 채우는 창입니다. Convert 탭의 Generate header.json 버튼으로 엽니다. 2장 샘플과 같은 값을 직접 넣고 Export 까지 해 봤습니다.</p>
+<p>먼저 Header Setting 탭입니다. Version, SPI 값, Entrypoint 를 채웠고 Secureboot 는 체크하지 않았습니다. 칸 왼쪽에 0x 가 이미 표시된 칸에는 0x 를 빼고 숫자만 넣습니다. Export 하면 json 에는 0x 가 붙어서 저장됩니다. 예를 들어 Entrypoint 칸에 90000000 을 넣으면 json 에 0x90000000 으로 들어갑니다.</p>
+<figure><img src="/assets/img/224440257818_04.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Header Setting 탭에 2장 샘플 값을 넣은 모습</p>
+<p>다음은 Header Option 탭입니다. 이미지 하나는 Offset, Loadaddr, Type, File 네 칸이고 4묶음이 있습니다. 앞의 두 묶음만 채웠습니다.</p>
+<figure><img src="/assets/img/224440257818_05.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Header Option 탭. Image 1 은 500000, 28030000, 2, loader.bin 이고 Image 2 는 50A000, 88000000, 3, ma35d1.dtb 입니다.</p>
+<ul>
+<li>Image N Offset : 그 이미지를 저장 장치 안의 어디에 쓸지입니다. 0x 를 뺀 숫자를 넣습니다.</li>
+<li>Image N Loadaddr : 부팅할 때 그 이미지를 올릴 DDR 또는 SRAM 주소입니다. 이것도 0x 를 뺍니다.</li>
+<li>Image N Type : 드롭다운이고 선택지는 빈칸, 1, 2, 3, 4 입니다. 1 = TSI, 2 = system setting, 3 = 디바이스 트리 같은 data, 4 = loader 입니다.</li>
+<li>Image N File : 이미지 파일입니다. Browse 로 고르거나 경로를 직접 적을 수 있고, json 에는 적은 경로가 그대로 들어갑니다. 저는 전체 경로를 넣었습니다.</li>
+<li>Aeskey, Ecdsakey : secureboot 에 쓰는 키입니다. json 에 키가 없으면 4장처럼 자동으로 만들어지고, 옆의 Generate 버튼을 누르면 칸에 키가 채워집니다. 두 키 모두 16진수 64자리였습니다. 키를 직접 갖고 있지 않다면 비워 둡니다.</li>
+</ul>
+<p>사용하지 않는 Image 3, 4 는 비워 둔 채 Export 했고 문제 없이 저장됐습니다. json 의 image 에는 채운 두 개만 들어갔습니다.</p>
+<p>Export 를 누르면 저장 창이 열립니다. 이름을 header_gui.json 으로 저장해서 확인해 보니 2장 header.json 과 값이 같았고, 다른 점은 파일 경로가 전체 경로라는 것과 env 항목이 없다는 것입니다. 이 창에는 env 를 적는 칸이 없습니다. uboot-env.bin 이 필요하면 json 에 env 를 직접 추가해야 합니다.</p>
+<p>이 header_gui.json 으로 Convert 를 실행하면 header.bin 이 만들어지고, 2장 header.json 으로 만든 header.bin 과 바이트가 같았습니다(둘 다 200 바이트). env 가 없어서 uboot-env.bin 은 만들어지지 않았습니다.</p>
+<h2>6. 참고 - header.bin 안의 값</h2>
+<p>위 연습 파일로 만든 header.bin 을 4바이트 단위로 읽은 결과입니다. 매뉴얼 4장의 부트 정보 구조와 맞았습니다.</p>
+<ul>
+<li>0x00 : 0x4E565420 (마커 NVT)</li>
+<li>0x04 : 체크섬. 8번째 바이트부터 파일 끝까지의 CRC32 와 같았습니다</li>
+<li>0x0C : 0x20200622 (version)</li>
+<li>0x10 ~ 0x1F : spiinfo. json 에 적은 2048, 64, 64, 0x6B, 0x05, 0x01, 0x02, 0, 1, 1 이 같은 순서로 들어 있습니다</li>
+<li>0x20 : 0x90000000 (entrypoint)</li>
+<li>0x24 : 2 (이미지 개수)</li>
+<li>0x28 부터 : 0x500000, 0x28030000, 0x2000, 2 (첫 이미지의 offset, loadaddr, 크기, type)</li>
+<li>0x78 부터 : 0x50A000, 0x88000000, 0x1000, 3 (두 번째 이미지)</li>
+</ul>
+<p>이미지 크기는 json 에 적지 않았는데 loader.bin(0x2000)과 ma35d1.dtb(0x1000)의 파일 크기로 채워졌습니다. 이미지 항목은 80 바이트씩이고 그 안의 서명 칸(signatureR, signatureS 각 32바이트)은 secureboot 가 no 일 때 0xFF 였습니다.</p>
+<p>uboot-env.bin 은 맨 앞 4바이트 뒤에 baudrate=115200, bootdelay=3, bootcmd=echo hello 가 널 문자로 구분되어 들어 있고 나머지는 0xFF 입니다. 맨 앞 4바이트는 그 뒤 65532 바이트 전체의 CRC32 와 일치했습니다.</p>
+<h2>정리</h2>
+<ul>
+<li>Convert 는 이미지 정보를 적은 header.json 을 IBR 이 읽는 부트 헤더 header.bin 으로 바꿔 줍니다. 만든 header.bin 은 Write(Download 탭)로 보드의 저장 장치에 써야 하고, Convert 자체는 보드 없이 PC 에서 실행합니다.</li>
+<li>이미지마다 파일 이름, 저장 위치(offset), 올릴 주소(loadaddr), 종류(type)를 적고 NuWriter_MA35.exe -c header.json 으로 실행합니다.</li>
+<li>env 를 적으면 uboot-env.bin 도 만들어지고 blksize 까지 0xFF 로 채워집니다.</li>
+<li>secureboot 를 yes 로 하고 키를 비우면 키가 자동으로 만들어져 header_key.txt 에 저장됩니다.</li>
+</ul>
+<p>출처: Nuvoton MA35 Series NuWriter User Manual Rev 1.05 (2장, 4장, 6.3절, 6.3.1절, 7.3절)</p>
+<p>💡 더 많은 Nuvoton 기술 자료와 Q&amp;A 는 네이버 카페에서 확인하실 수 있습니다.</p>
+<p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
+<p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>
+<hr>
+<p>이 글은 네이버 블로그에도 있습니다: <a href="https://blog.naver.com/nuvoton-dev/224440257818">https://blog.naver.com/nuvoton-dev/224440257818</a></p>
+{% endraw %}

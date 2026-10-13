@@ -1,0 +1,95 @@
+---
+layout: post
+title: "[DIY] 5000 원으로 자작하는 무선(Wi-Fi) CMSIS-DAP 디버거 제작 가이드"
+date: 2026-07-08 09:00:00 +0900
+description: "임베디드 개발자들에게 디버거(Debugger)는 떼려야 뗄 수 없는 필수 도구입니다. 하지만 매번 디버거 케이블이 꼬이거나, 타겟 보드와 PC 사이의 물리적 거리 때문에 불편을 겪은 적이 많으실 겁니다. 시중의 상용 무선 디버거는 수십만 원을 호가하여 개인 메이커나 엔"
+naver_logno: 224340406351
+---
+{% raw %}
+<p>임베디드 개발자들에게 디버거(Debugger)는 떼려야 뗄 수 없는 필수 도구입니다. 하지만 매번 디버거 케이블이 꼬이거나, 타겟 보드와 PC 사이의 물리적 거리 때문에 불편을 겪은 적이 많으실 겁니다. 시중의 상용 무선 디버거는 수십만 원을 호가하여 개인 메이커나 엔지니어가 선뜻 구매하기 어렵습니다.</p>
+<p>이번 가이드에서는 가성비가 뛰어난 Nuvoton M031/M480 MCU와 저가형 Wi-Fi 모듈인 ESP8266(또는 ESP32)을 결합하여, 단돈 5,000원 안팎으로 Keil MDK와 IAR에서 무선으로 디버깅 및 다운로드가 가능한 자작(DIY) 무선 CMSIS-DAP 디버거 제작 방법을 상세히 공유합니다.</p>
+<p>---</p>
+<p>▶ 1. 무선 CMSIS-DAP 디버거의 동작 원리</p>
+<p>이 자작 디버거의 핵심은 PC 에디터(Keil/IAR)가 무선(Wi-Fi TCP/IP)을 통해 디버거 칩으로 데이터를 전송하고, 디버거 칩이 이를 SWD(Serial Wire Debug) 프로토콜로 변환하여 타겟 MCU에 전달하는 구조입니다.</p>
+<p>`mermaid</p>
+<p>graph LR</p>
+<p>subgraph Host PC</p>
+<p>A[Keil MDK / IAR] --&gt;|TCP/IP Socket| B[Virtual COM / TCP Link]</p>
+<p>end</p>
+<p>subgraph Wireless Debugger Node</p>
+<p>B --&gt;|Wi-Fi| C[ESP8266 / ESP32]</p>
+<p>C --&gt;|UART / High-speed| D[NuMicro M031 / M480]</p>
+<p>D --&gt;|CMSIS-DAP Firmware| E[SWD Controller]</p>
+<p>end</p>
+<p>subgraph Target System</p>
+<p>E --&gt;|SWCLK / SWDIO / GND| F[Target MCU (ARM Cortex-M)]</p>
+<p>end</p>
+<p>`</p>
+<p>1. PC 호스트: Keil MDK나 IAR에서 CMSIS-DAP 디버거 설정을 TCP/IP 연결 모드로 잡거나, 가상 포트 브리지를 구동합니다.</p>
+<p>2. Wi-Fi 모듈(ESP8266): PC로부터 들어오는 TCP 데이터 패킷을 수신하여 고속 UART 통신을 통해 Nuvoton MCU로 전달합니다.</p>
+<p>3. 디버거 MCU (M031/M480): 전달받은 USB/HID 기반 CMSIS-DAP 명령을 해석하여 타겟 MCU의 SWD(SWCLK, SWDIO) 핀으로 신호를 직접 토글(Toggle)합니다.</p>
+<p>---</p>
+<p>▶ 2. 준비물 (BOM List) 및 회로 레이아웃</p>
+<p>부품은 국내 오픈마켓이나 알리익스프레스 등에서 매우 저렴하게 구입할 수 있습니다.</p>
+<p>📊</p>
+<p>• **NuMaker-Mono-M031** 또는 **M482 개발보드** (역할: CMSIS-DAP 프로토콜 파서 및 SWD 제어 핵심 MCU / 예상 비용: 약 2,500원)</p>
+<p>• **ESP8266 (ESP-01)** (역할: TCP/IP 통신 및 Wi-Fi 링크 구축 / 예상 비용: 약 1,500원)</p>
+<p>• **3.3V LDO &amp; 커패시터** (역할: ESP8266 및 MCU 전원 안정화용 / 예상 비용: 약 500원)</p>
+<p>• **만능기판 &amp; 점퍼선** (역할: 하드웨어 뼈대 및 연결 라인 / 예상 비용: 약 500원)</p>
+<p>📊</p>
+<p>임베디드 하드웨어 구성의 이해를 돕기 위해 공개된 오픈소스 회로 및 연결 형태는 아래와 같습니다.</p>
+<p>(그림 1: ESP8266 모듈과 메인 컨트롤러 간의 회로 연결 참조도)</p>
+<p>---</p>
+<p>▶ 3. 하드웨어 회로 구성 및 연결법</p>
+<p>Nuvoton M031/M480 보드와 ESP8266 간의 회로 연결은 매우 간단합니다. UART 채널 and 전원선만 올바르게 연결해주면 됩니다.</p>
+<p>📌</p>
+<p>`text</p>
+<p>[ESP8266 (ESP-01)]          [Nuvoton M031 / M480]</p>
+<p>VCC (3.3V)   &lt;=========&gt;   3.3V Out (LDO 권장)</p>
+<p>GND          &lt;=========&gt;   GND</p>
+<p>TXD          &lt;=========&gt;   RXD (UART1 / PB.2)</p>
+<p>RXD          &lt;=========&gt;   TXD (UART1 / PB.3)</p>
+<p>CH_PD (EN)   &lt;=========&gt;   3.3V pull-up (10kΩ)</p>
+<p>[Nuvoton M031 / M480]       [Target MCU]</p>
+<p>SWCLK (PA.2) &lt;=========&gt;   Target SWCLK</p>
+<p>SWDIO (PA.1) &lt;=========&gt;   Target SWDIO</p>
+<p>GND          &lt;=========&gt;   Target GND</p>
+<p>`</p>
+<p>⚠️</p>
+<p>ESP8266 모듈은 Wi-Fi 통신 중에 순간적으로 최대 300mA 이상의 전류를 소모합니다. Nuvoton 개발보드 내장 LDO 출력이 약할 경우 오작동할 수 있으므로, 반드시 외부 3.3V LDO(예: AMS1117-3.3)를 추가하여 전원을 안정화해 주는 것이 좋습니다.</p>
+<p>---</p>
+<p>▶ 4. 펌웨어 빌드 및 업로드</p>
+<p>이 프로젝트는 오픈소스로 공개된 CMSIS-DAP 펌웨어를 컴파일하여 업로드합니다.</p>
+<p>▷ 1단계: ESP8266 AT 펌웨어 또는 transparent bridge 펌웨어 작성</p>
+<p>ESP8266에 간단한 Transparent TCP-to-UART Bridge 펌웨어를 구동시킵니다. PC로부터 들어오는 TCP 포트(예: 8080)의 모든 바이트를 고속 UART(보드레이트 921600 이상 추천)로 바이패스해 주는 간단한 아두이노 스케치입니다.</p>
+<p>*   보드레이트 설정: CMSIS-DAP 통신 속도 지연을 최소화하기 위해 UART 보드레이트는 반드시 921,600bps 또는 1,152,000bps로 설정해 주어야 합니다.</p>
+<p>▷ 2단계: Nuvoton MCU에 CMSIS-DAP 코어 포팅</p>
+<p>1. GitHub/Gitee에서 공개된 CMSIS-DAP 소스를 가져옵니다.</p>
+<p>2. Nuvoton BSP 라이브러리를 포함하고, USB/HID 대신 UART 수신 이벤트 버퍼로부터 CMSIS-DAP 명령을 읽어 실행하도록 메인 루프를 수정합니다.</p>
+<p>3. PA.1과 PA.2 핀을 가상 GPIO 에뮬레이션 또는 고속 GPIO 모드로 설정하여 SWD 프로토콜 클럭을 생성하도록 드라이버를 포팅합니다.</p>
+<p>4. 컴파일 완료 후 Nuvoton Nu-Link를 통해 자작 보드에 바이너리를 업로드합니다.</p>
+<p>(그림 2: ESP 모듈과 메인 칩을 결합하여 완성한 컴팩트 자작 무선 디버거)</p>
+<p>---</p>
+<p>▶ 5. Keil MDK 디버거 설정법</p>
+<p>하드웨어가 준비되었으면 Keil MDK에서 무선 디버거를 설정합니다.</p>
+<p>1. TCP 가상 포트 프로그램 구동: PC에서 디버거의 Wi-Fi IP 주소(예: 192.168.1.100)와 포트 8080을 연동하는 가상 포트 또는 가상 CMSIS-DAP 드라이버 프로그램을 구동합니다.</p>
+<p>2. Keil 프로젝트 옵션 진입: Options for Target -&gt; Debug 탭으로 이동합니다.</p>
+<p>3. 디버거 선택: 우측 상단 Dropdown에서 CMSIS-DAP Debugger를 선택하고 Settings를 클릭합니다.</p>
+<p>4. 연결 확인: 디버거가 올바르게 연결되면 SW Device 창에 Target MCU의 Core ID가 정상적으로 나타납니다.</p>
+<p>5. 다운로드 및 디버깅: 이제 무선 상태에서 F5 키를 눌러 디버깅을 시작하면 꼬임 없는 쾌적한 디버깅 환경이 구축됩니다!</p>
+<p>---</p>
+<p>▶ 6. 오픈소스 프로젝트 출처 및 참조 링크</p>
+<p>본 가이드는 글로벌 개발자들이 활발하게 기여하고 있는 아래의 대표적인 오픈소스 프로젝트를 기반으로 작성되었습니다.</p>
+<p>*   ESP8266/ESP32 무선 디버거 펌웨어 코어: GitHub - windowsair/wireless-esp8266-dap (<a href="https://github.com/windowsair/wireless-esp8266-dap">https://github.com/windowsair/wireless-esp8266-dap</a>)</p>
+<p><a href="https://github.com/windowsair/wireless-esp8266-dap">GitHub - windowsair/wireless-esp8266-dap: CMSIS-DAP compatible wireless debugger for ESP8266/ESP32/ESP32C3/ESP32S3. Optional 40MHz SPI acceleration, etc. 适配多种ESP芯片的无线调试器</a></p>
+<p>*   ESP8266 Wi-Fi DAPLink 오리지널 소스: GitHub - thevoidnn/esp8266-wifi-cmsis-dap (<a href="https://github.com/thevoidnn/esp8266-wifi-cmsis-dap">https://github.com/thevoidnn/esp8266-wifi-cmsis-dap</a>)</p>
+<p><a href="https://github.com/thevoidnn/esp8266-wifi-cmsis-dap">GitHub - thevoidnn/esp8266-wifi-cmsis-dap: WIRELESS CMSIS-DAP USB/IP-SWD/JTAG HID adapter firmware for ESP8266 boards</a></p>
+<p>*   ARM 공식 CMSIS-DAP 레포지토리: GitHub - ARM-software/CMSIS-DAP (<a href="https://github.com/ARM-software/CMSIS-DAP)">https://github.com/ARM-software/CMSIS-DAP)</a></p>
+<p>---</p>
+<p>💡</p>
+<p>더 많은 기술 자료와 Nuvoton 개발 팁을 확인하실 수 있습니다.</p>
+<p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
+<p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>
+<hr>
+<p>이 글은 네이버 블로그에도 있습니다: <a href="https://blog.naver.com/nuvoton-dev/224340406351">https://blog.naver.com/nuvoton-dev/224340406351</a></p>
+{% endraw %}

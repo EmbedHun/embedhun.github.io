@@ -1,0 +1,13 @@
+title: 임베디드 FAE의 누보톤 기술 노트
+description: Nuvoton MCU/MPU 를 다루면서 직접 확인한 내용을 적는 기술 노트. NuWriter, MA35D1, N76E003, NUC980, M251, M487.
+url: https://embedhun.github.io
+lang: ko
+timezone: Asia/Seoul
+theme: minima
+permalink: /posts/:title/
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+  - jekyll-feed
+exclude:
+  - README.md

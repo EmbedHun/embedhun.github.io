@@ -1,0 +1,121 @@
+---
+layout: post
+title: "입력 전압이 ADC의 VREF를 초과하면 어떻게 되나요?"
+date: 2026-07-06 09:00:00 +0900
+description: "ADC"
+naver_logno: 224337844355
+---
+{% raw %}
+<p>ADC</p>
+<p>배경</p>
+<p>최근에는 4개의 저온 드리프트 초퍼 안정화 OPA(0.05 µV/℃)가 포함된 Nuvoton M091을 사용하여 광학 센서를 설계했습니다. 전압 분해능을 높이기 위해 M091 ADC의 VREF를 내장 2.048V로 설정했습니다.</p>
+<p>설계에 따르면 증폭기의 최대 출력 전압은 M091 OPA의 공급 전압에서 3.3V입니다. 나중에 M091의 데이터시트를 자세히 읽어보니 ADC 장에서는 입력 전압이 AVDD가 될 수 있다고 나와 있지만 ADC 전기적 특성 뒷부분의 8장에서는 0V부터 VREF까지라고 되어 있는 것을 발견했습니다.</p>
+<p>또한 주입 전류가 다른 채널에 영향을 미칠 것이라고 데이터시트에 명시되어 있는데, 지금까지는 0V에서 VREF까지 ADC가 변환할 수 있는 범위일 뿐이라고 생각합니다. 아니면 이미 주입 전류를 발생시키는 상한선입니까?</p>
+<p>참고: 주입 전류는 ADC 정확도의 중요한 주제입니다. 다른 아날로그 입력에서 수행되는 변환을 보호하려면 아날로그 입력 핀에 전류를 주입하지 않아야 합니다.</p>
+<p>이를 검증하기 위해 TECHDesign에서 M091용 개발보드 NuMaker-M091YD를 구입했습니다.</p>
+<p><a href="https://www.techdesign.com/market/nuvoton/product-detail/ntc000753/numaker-m091yd">https://www.techdesign.com/market/nuvoton/product-detail/ntc000753/numaker-m091yd</a></p>
+<p><a href="https://www.techdesign.com/market/nuvoton/product-detail/ntc000753/numaker-m091yd">Buy NuMaker-M091YD - Nuvoton NuMicro Cortex®-M0 Evaluation Board at TECHDesign</a></p>
+<p>개발 보드를 얻은 후 조정할 스위치가 두 개 있습니다.</p>
+<p>ICESW2의 TXD 및 RXD를 ON 위치로 전환하여 UART에서 printf() 메시지를 가져옵니다.</p>
+<p>SW2의 NU1_3VCC를 ON 위치로 전환하여 보드에 3.3V 전원이 공급되도록 합니다.</p>
+<p>보드 수정</p>
+<p>M091 스위치를 내장 VREF로 전환하려면 개발 보드의 L5를 제거하여 VREF 핀에서 AVDD를 제거합니다. Nuvoton 디자인은 매우 친밀합니다. L5의 양쪽 끝이 2핀 헤더에 연결되어 있고 헤더를 동시에 납땜했기 때문에 AVDD를 VREF로 사용하려는 경우 점퍼를 연결하기만 하면 제거된 L5를 다시 납땜할 필요가 없습니다.</p>
+<p>테스트 방법:</p>
+<p>테스트 방법은 매우 간단합니다. 즉, IO를 ADC의 입력으로 설정한 다음 전류계를 3.3V에 연결하고 펌웨어에서 고정 샘플링 속도로 이 아날로그 핀을 읽고(이로 인해 입력 신호가 ADC에 들어갈 수 있음) VIN이 3.3V, VREF가 3.3V 또는 내장 2.048V일 때 입력 전류가 크게 증가하는지 비교합니다.</p>
+<p>테스트 코드</p>
+<p>루프에서 1ms마다 ADC 샘플을 만드는 간단한 프로그램입니다. 다음은 PB.7/ADC0_CH7을 사용하여 ADC에 대한 입력입니다.</p>
+<p>#include &lt;stdio.h&gt;</p>
+<p>#include &quot;NuMicro.h&quot;</p>
+<p>void SYS_Init(void)</p>
+<p>{</p>
+<p>/* Unlock protected registers */</p>
+<p>SYS_UnlockReg();</p>
+<p>/* Enable HIRC clock (Internal RC 48MHz) */</p>
+<p>CLK_EnableXtalRC(CLK_PWRCTL_HIRCEN_Msk);</p>
+<p>/* Wait for HIRC clock ready */</p>
+<p>CLK_WaitClockReady(CLK_STATUS_HIRCSTB_Msk);</p>
+<p>/* Select HCLK clock source as HIRC and HCLK source divider as 1 */</p>
+<p>CLK_SetHCLK(CLK_CLKSEL0_HCLKSEL_HIRC, CLK_CLKDIV0_HCLK(1));</p>
+<p>/* Enable UART0 clock */</p>
+<p>CLK_EnableModuleClock(UART0_MODULE);</p>
+<p>/* Switch UART0 clock source to HIRC */</p>
+<p>CLK_SetModuleClock(UART0_MODULE, CLK_CLKSEL1_UART0SEL_HIRC, CLK_CLKDIV0_UART0(1));</p>
+<p>/* Enable ADC module clock */</p>
+<p>CLK_EnableModuleClock(ADC_MODULE);</p>
+<p>/* ADC clock source is PCLK1, set divider to 1 */</p>
+<p>CLK_SetModuleClock(ADC_MODULE, CLK_CLKSEL2_ADCSEL_PCLK1, CLK_CLKDIV0_ADC(1));</p>
+<p>/* Update System Core Clock */</p>
+<p>SystemCoreClockUpdate();</p>
+<p>/* Set PB multi-function pins for UART0 RXD=PB.12 and TXD=PB.13 */</p>
+<p>SYS-&gt;GPB_MFPH = (SYS-&gt;GPB_MFPH &amp; ~(SYS_GPB_MFPH_PB12MFP_Msk | SYS_GPB_MFPH_PB13MFP_Msk))    |       \</p>
+<p>(SYS_GPB_MFPH_PB12MFP_UART0_RXD | SYS_GPB_MFPH_PB13MFP_UART0_TXD);</p>
+<p>/* Configure the PB.7 ADC analog input pins. */</p>
+<p>SYS-&gt;GPB_MFPL = (SYS-&gt;GPB_MFPL &amp; ~SYS_GPB_MFPL_PB7MFP_Msk) | SYS_GPB_MFPL_PB7MFP_ADC0_CH7;</p>
+<p>/* Disable the PB.7 digital input path to avoid the leakage current. */</p>
+<p>GPIO_DISABLE_DIGITAL_PATH(PB, BIT7);</p>
+<p>/* Lock protected registers */</p>
+<p>SYS_LockReg();</p>
+<p>}</p>
+<p>void main()</p>
+<p>{</p>
+<p>uint32_t u32Result;</p>
+<p>SYS_Init();</p>
+<p>/* Init UART0 to 115200-8n1 for print message */</p>
+<p>UART_Open(UART0, 115200);</p>
+<p>/* Connect UART to PC, and open a terminal tool to receive following message */</p>
+<p>printf(&quot;Hello World\n&quot;);</p>
+<p>ADC_POWER_ON(ADC);</p>
+<p>ADC_Open(ADC, ADC_ADCR_DIFFEN_SINGLE_END, ADC_ADCR_ADMD_SINGLE_CYCLE, BIT7);</p>
+<p>ADC_SetExtendSampleTime(ADC, 0, 255);</p>
+<p>/* Got no where to go, just loop forever */</p>
+<p>while(1)</p>
+<p>{</p>
+<p>/* Trigger sample module 0 to start A/D conversion */</p>
+<p>ADC_START_CONV(ADC);</p>
+<p>while(!ADC_IS_DATA_VALID(ADC, 7));</p>
+<p>/* Get the conversion result of the sample module 0 */</p>
+<p>u32Result = ADC_GET_CONVERSION_DATA(ADC, 7);</p>
+<p>CLK_SysTickDelay(1000);</p>
+<p>}</p>
+<p>}</p>
+<p>VREF=3.3V 및 VIN=3.3V일 때 입력 전류 측정</p>
+<p>이제 VREF로 AVDD를 사용하면 2핀 헤더를 점퍼로 단락시켜야 합니다.</p>
+<p>입력 전류는 4.6nA입니다.</p>
+<p>VREF를 내장된 2.048V로 전환하세요.</p>
+<p>VREF 핀은 기본적으로 칩의 VREF에 직접 연결되어 있으므로 전환하기 전에 2핀 헤더의 점퍼를 제거하는 것을 잊지 마십시오.</p>
+<p>TRM에서 내장 VREF로 전환하는 과정을 정리합니다.</p>
+<p>내장된 온도 센서와 함께 밴드 갭 기준을 활성화합니다(이는 내부 VREF 및 DAC가 작동하는 데에도 적용됩니다).</p>
+<p>밴드갭 참조를 활성화한 후 200마이크로초의 정착 시간을 기다려야 합니다.</p>
+<p>기준 전압 소스를 내장된 2.048V로 전환하면 사전 부하 기능이 하드웨어에 의해 자동으로 활성화되어 안정화 시간이 단축됩니다.</p>
+<p>기준 전압 소스를 전환한 후 정착 시간을 기다립니다. 정착 시간 TS는 외부 바이패스 커패시터에 따라 달라집니다. 데이터시트의 8.5.4를 참조하세요.</p>
+<p>부하 효과가 기준 전압 소스의 정확도에 영향을 미치지 않도록 사전 부하 기능을 수동으로 꺼짐</p>
+<p>내장된 2.048V로 전환하려면 펌웨어의 SYS_Init()에 다음 줄을 추가해야 합니다.</p>
+<p>/* Temperature sensor band-gap will be enabled and Temperature sensor will supply current source to DAC and Internal Voltage Reference. */</p>
+<p>SYS-&gt;TSCTL |= SYS_TSCTL_TSBGEN_Msk;</p>
+<p>/* After TSBGEN is set, users should wait 200us stable time to enable DACEN(DACx_CTL[0]) or VREFEN (SYS_VREFCTL[0]). */</p>
+<p>CLK_SysTickDelay(200);</p>
+<p>/* Set VREF to 2.048 V */</p>
+<p>SYS_SetVRef(SYS_VREFCTL_VREF_2_0V);</p>
+<p>/* PRELOADEN should be cleared after 480us of VREFEN enabled, if VREF capacitor is 1uF and VREF initial is 0V. */</p>
+<p>CLK_SysTickDelay(480);</p>
+<p>/* When VREFEN is set to 1, PRELOADEN(SYS_VREFCTL[6]) will be set automatically to shorten VREF discharge and stable time. */</p>
+<p>/* User needs to disable PRELOADEN function after stable time, otherwise it will affect the maximum load current that INT_VREF can provide. */</p>
+<p>SYS-&gt;VREFCTL &amp;= ~(SYS_VREFCTL_PRELOADEN_Msk);</p>
+<p>성공적으로 전환되면 VREF에서 실제로 2.048V를 측정할 수 있어야 합니다.</p>
+<p>이제 VREF=2.048V, VIN=3.3V일 때 입력 전류를 측정해 보겠습니다.</p>
+<p>입력 전류는 9.7nA입니다.</p>
+<p>결론</p>
+<p>ADC를 사용하기 위한 일반적인 조건은 AVDD≧VREF≧VIN입니다. 이 실험에서 논의되는 주요 질문은 VREF&lt;AVDD 및 AVDD&gt;VIN &gt; VREF일 때 VIN에 칩이 비정상적으로 작동하거나 심지어 칩을 손상시키는 원인이 되는 불합리한 주입 전류가 있습니까?</p>
+<p>AVDD=VREF=VIN=3.3V인 경우 입력 전류는 4.6nA입니다.</p>
+<p>AVDD=VIN=3.3V, VREF=2.048V인 경우 입력 전류는 9.7nA입니다.</p>
+<p>실험 결과에 따르면 VIN이 VREF보다 높지만(VIN이 AVDD보다 높지 않은 경우) 전류 증가가 합리적이며 주입 전류와는 달라 칩이 손상되지 않습니다. 데이터시트의 8.5.2 12비트 SAR ADC는 VIN 범위가 0~VREF로 표시되는데 이는 변환할 수 있는 범위(유효 범위)를 나타내지만 ADC는 이 범위를 벗어나는 동안 실제 입력 신호를 구문 분석할 수 없습니다.</p>
+<p>VIN은 AVDD보다 높아서는 안 되며, 이는 불합리한 사용 조건이며 전류 주입 위험을 초래할 수 있습니다(DS의 표 8.1-2 참조).</p>
+<p>SAR ADC 입력은 변환 결과를 DAC와 비교하는 비교기인 반면, VREF는 일반적으로 DAC의 기준 전압으로 DAC에만 연결됩니다. 좋아요! ADC에는 DAC가 포함되어 있습니다. ADC의 원리에 관심이 있다면 살펴보세요.</p>
+<p><a href="https://en.wikipedia.org/wiki/Successive-appimation_ADC">https://en.wikipedia.org/wiki/Successive-appimation_ADC</a>따라서 비교기를 단독으로 사용할 때 VIN+는 VIN-보다 높을 수 있지만 VIN은 모두 공급 전압보다 높을 수 없는 것과 같습니다. 그렇죠?</p>
+<p>---</p>
+<p>💡</p>
+<p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
+<p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>
+<hr>
+<p>이 글은 네이버 블로그에도 있습니다: <a href="https://blog.naver.com/nuvoton-dev/224337844355">https://blog.naver.com/nuvoton-dev/224337844355</a></p>
+{% endraw %}

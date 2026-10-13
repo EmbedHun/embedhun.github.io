@@ -1,0 +1,104 @@
+---
+layout: post
+title: "[기술 가이드] 시스템 안정성 확보: 누보톤 MCU 브라운아웃 감지기(BOD)의 역할 및 펌웨어 구현법"
+date: 2026-07-06 09:00:00 +0900
+description: "1. 개요 및 배경"
+naver_logno: 224338099375
+---
+{% raw %}
+<p>1. 개요 및 배경</p>
+<p>임베디드 제품 설계 시 전원이 공급되거나 차단되는 과도기(Power-on/off), 혹은 일시적인 배터리 방전 및 전원 노이즈로 인해 시스템 전압(VDD)이 서서히 흔들리며 강하하는 현상이 자주 발생합니다.</p>
+<p>이때 마이크로컨트롤러(MCU) 자체는 전력 효율이 좋아 최저 작동 전압(예: 1.8V)에서도 펌웨어 코드를 실행할 수 있으나, 시스템에 탑재된 외부 장치(예: 최소 작동 전압이 2.7V인 외부 SPI Flash 메모리나 정밀 센서)가 먼저 작동을 멈추는 상황이 발생합니다.</p>
+<p>이 전압 불일치 구간에서 MCU가 통신 버스(I2C, SPI)로 데이터를 전송하려고 시도하면, 무응답 장치로 인해 버스 데드락(Bus Hang) 현상이 발생하거나 쓰기 오류로 인한 외부 메모리 데이터 손상이 발생합니다.</p>
+<p>이러한 오작동과 오동작을 완벽하게 방지하기 위해 사용되는 하드웨어 주변장치가 바로 브라운아웃 감지기(BOD, Brown-out Detector)입니다.</p>
+<p>이 가이드북은 누보톤 M2L31/M480 시리즈를 기준으로 전압 강하 시 시스템 안정성을 지키는 BOD 설정법과 BOR(Brown-out Reset) 및 BOD 인터럽트 펌웨어 구현 예시를 제시합니다.</p>
+<p>2. 브라운아웃 감지기(BOD)와 리셋(BOR)의 차이 및 역할</p>
+<p>BOD는 전원 전압(VDD)을 실시간 모니터링하여 전압이 임계값 아래로 떨어질 때 두 가지 보호 시나리오를 가동할 수 있습니다.</p>
+<p>1) 브라운아웃 리셋 (BOR, Brown-out Reset)</p>
+<p>전압이 설정된 감지 레벨 이하로 떨어지면 MCU를 강제로 리셋 상태로 고정시킵니다. 전압이 다시 정상 상태로 회복될 때까지 리셋 상태를 유지하므로, 불완전한 로직 신호나 가비지(Garbage) 데이터가 외부 I2C, SPI, GPIO 라인으로 출력되는 것을 물리적으로 완전 차단하여 모터 드라이버 오동작이나 하드웨어 파손을 즉각 방지합니다.</p>
+<p>2) 브라운아웃 인터럽트 (BOD Interrupt)</p>
+<p>리셋을 걸기 전에 소프트웨어에 마지막 위험 경고를 보냅니다. 전압이 임계값 이하로 떨어지는 순간 인터럽트 서비스 루틴(ISR)이 기동되어, 현재 전송 중인 쓰기 작업을 안전하게 중단하고, 핵심 데이터(SRAM 데이터)를 비비열성 메모리에 백업하며, 외부 모터를 안전 위치로 오프(Off)시키는 최후의 보호 시스템을 구현할 수 있습니다.</p>
+<p>3. 시스템 환경에 맞는 BOD 임계 전압 설정 기준</p>
+<p>BOD 전압 임계값은 MCU가 아닌, 전체 회로 기판에서 가장 높은 최소 작동 전압을 가진 부품의 사양을 기준으로 설정해야 합니다.</p>
+<p>예시 시나리오:</p>
+<p>- MCU 최소 작동 전압: 1.8V</p>
+<p>- 외부 센서 및 SPI 플래시 메모리 최소 작동 전압: 2.7V</p>
+<p>- 시스템 권장 BOD 설정값: 2.7V</p>
+<p>설정 원리</p>
+<p>BOD를 2.7V로 인가해 두면, VDD 전압이 2.7V 이하로 내려가는 즉시 MCU 실행을 리셋시키거나 경고 인터럽트를 보냅니다. 이를 통해 최소 전압을 보장받지 못한 외부 장치와의 엉뚱한 통신 시도를 원천 차단하여 통신 버스가 묶이거나 플래시 데이터가 깨지는 참사를 사전에 방지할 수 있습니다.</p>
+<p>4. BSP 기반 BOD/BOR 제어 펌웨어 구현법</p>
+<p>누보톤 M2L31 시리즈의 전력 관리 유닛(PMU) 레지스터들을 직접 제어하여 BOD 기능을 2.7V 임계값으로 설정하고, 브라운아웃 인터럽트를 인가하여 최후의 데이터를 세이브하는 C 코드 가이드입니다.</p>
+<p>#include &lt;stdio.h&gt;</p>
+<p>#include &quot;NuMicro.h&quot;</p>
+<p>// BOD 인터럽트 서비스 루틴 (ISR)</p>
+<p>void BOD_IRQHandler(void)</p>
+<p>{</p>
+<p>// 1. BOD 인터럽트 플래그 확인</p>
+<p>if (SYS_GET_BOD_INT_FLAG() == 1)</p>
+<p>{</p>
+<p>// 2. 인터럽트 플래그 클리어</p>
+<p>SYS_CLEAR_BOD_INT_FLAG();</p>
+<p>// 3. 최후의 비상 보호 조치 수행</p>
+<p>// - 진행 중인 외부 플래시/EEPROM 쓰기 연산 즉각 중단</p>
+<p>// - I2C 및 SPI 핀들의 출력을 Safe State(High-Z 또는 Low)로 변경</p>
+<p>// - 구동용 모터 정지 명령 출력</p>
+<p>printf(&quot;BOD Warning: VDD voltage is dropping below 2.7V! Halting write tasks...\n&quot;);</p>
+<p>}</p>
+<p>}</p>
+<p>void SYS_Init(void)</p>
+<p>{</p>
+<p>// 시스템 레지스터 락 해제</p>
+<p>SYS_UnlockReg();</p>
+<p>// HIRC 내부 오실레이터 활성화 및 시스템 클럭 구성</p>
+<p>CLK_EnableXtalRC(CLK_PWRCTL_HIRCEN_Msk);</p>
+<p>CLK_WaitClockReady(CLK_STATUS_HIRCSTB_Msk);</p>
+<p>CLK_SetHCLK(CLK_CLKSEL0_HCLKSEL_HIRC, CLK_CLKDIV0_HCLK(1));</p>
+<p>// 디버그 메시지용 UART 클럭 활성화</p>
+<p>CLK_EnableModuleClock(UART0_MODULE);</p>
+<p>CLK_SetModuleClock(UART0_MODULE, CLK_CLKSEL1_UART0SEL_HIRC, CLK_CLKDIV0_UART0(1));</p>
+<p>SYS-&gt;GPB_MFPH = (SYS-&gt;GPB_MFPH &amp; ~(SYS_GPB_MFPH_PB12MFP_Msk | SYS_GPB_MFPH_PB13MFP_Msk)) |</p>
+<p>(SYS_GPB_MFPH_PB12MFP_UART0_RXD | SYS_GPB_MFPH_PB13MFP_UART0_TXD);</p>
+<p>// 시스템 레지스터 락 설정</p>
+<p>SYS_LockReg();</p>
+<p>}</p>
+<p>void BOD_Config_Setup(void)</p>
+<p>{</p>
+<p>// 시스템 레지스터 보호 해제</p>
+<p>SYS_UnlockReg();</p>
+<p>// 1. BOD 기능 자체를 활성화 (BODEN 비트 세팅)</p>
+<p>// 2. BOD 감지 전압 레벨을 2.7V로 구성 (BODVL_2_7V 상수 대입)</p>
+<p>// 3. 임계치 이탈 시 강제 리셋(BOR) 대신 인터럽트 모드로 설정 (BODRSTEN 비트 해제)</p>
+<p>// 만약 전압 저하 시 즉각 강제 리셋을 걸고 싶다면 세 번째 인자를 SYS_BODCTL_BODRSTEN_Msk로 지정합니다.</p>
+<p>SYS_EnableBOD(SYS_BODCTL_BODEN_Msk, SYS_BODCTL_BODVL_2_7V, 0);</p>
+<p>// 4. NVIC에서 브라운아웃 인터럽트 활성화 및 우선순위 최고 레벨로 지정</p>
+<p>NVIC_EnableIRQ(BOD_IRQn);</p>
+<p>NVIC_SetPriority(BOD_IRQn, 0);</p>
+<p>SYS_LockReg();</p>
+<p>}</p>
+<p>int main(void)</p>
+<p>{</p>
+<p>SYS_Init();</p>
+<p>UART_Open(UART0, 115200);</p>
+<p>printf(&quot;BOD Monitoring System initialized.\n&quot;);</p>
+<p>// BOD 감지 시스템 기동</p>
+<p>BOD_Config_Setup();</p>
+<p>while(1)</p>
+<p>{</p>
+<p>// 전압 정상 상태에서의 일반 루프 작업 수행</p>
+<p>CLK_SysTickDelay(1000000);</p>
+<p>}</p>
+<p>}</p>
+<p>5. 임베디드 FAE 리스크 분석 및 예방 대책</p>
+<p>BOD 인터럽트 핸들러 내 딜레이 함수 사용 금지</p>
+<p>BOD 인터럽트가 트리거된 시점은 전원 공급이 이미 끊겨서 시스템 에너지가 콘덴서의 잔여 전하에 의존해 초 읽기에 들어간 긴박한 상태입니다. 따라서 BOD_IRQHandler 내부에 printf()나 긴 SysTickDelay() 같은 지연 함수를 배치하면, 필수 데이터 세이브 코드가 실행되기도 전에 MCU 전원이 완전히 꺼져버립니다. 실제 양산 코드에서는 인터럽트 즉시 인라인 코드로 최소한의 메모리 백업 비트만 쓰고 전력을 차단해야 합니다.</p>
+<p>노이즈로 인한 BOD 오작동 방지</p>
+<p>모터의 역기전력이나 순간적인 스위칭 서지로 인해 VDD 라인에 아주 미세한 나노초(ns) 단위의 전압 처짐이 발생할 경우 BOD가 오작동하여 불필요한 인터럽트나 리셋을 유발할 수 있습니다. 이를 막기 위해 누보톤 MCU는 BOD 내부 디필터(BODLPM) 필터링 하드웨어를 제공하므로, 필요시 필터링 클럭 지연 옵션을 추가 인가하여 회로의 노이즈 내성을 보장하십시오.</p>
+<p>6. 참고 자료 및 레퍼런스 (References)</p>
+<p>본 아티클은 누보톤의 공식 브라운아웃 감지기(BOD) 하드웨어 설계 가이드라인 및 M2L31 시리즈 기술 레퍼런스 매뉴얼(TRM)의 전력 제어 장치를 기반으로 작성되었습니다. 또한 누보톤 공식 개발 BSP의 BOD_Wakeup 예제 프로젝트의 드라이버 헤더 규격 및 인터럽트 활성화 시퀀스를 검증하여 작성한 실무용 기술 가이드 문서입니다.</p>
+<p>---</p>
+<p>💡</p>
+<p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
+<p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>
+<hr>
+<p>이 글은 네이버 블로그에도 있습니다: <a href="https://blog.naver.com/nuvoton-dev/224338099375">https://blog.naver.com/nuvoton-dev/224338099375</a></p>
+{% endraw %}

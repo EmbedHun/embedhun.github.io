@@ -1,0 +1,94 @@
+---
+layout: post
+title: "Nuvoton ICP Programming Tool 사용법 - 실제 화면으로 따라 하는 Nu-Link 펌웨어 쓰기 (M55M1)"
+date: 2026-10-14 09:00:00 +0900
+description: "Nuvoton ICP Programming Tool 은 Nu-Link 어댑터로 NuMicro 칩의 플래시에 펌웨어를 써 넣는 PC 프로그램입니다. 쓸 파일은 bin 또는 Intel hex 형식이면 됩니다."
+naver_logno: 224441337449
+---
+{% raw %}
+<p>Nuvoton ICP Programming Tool 은 Nu-Link 어댑터로 NuMicro 칩의 플래시에 펌웨어를 써 넣는 PC 프로그램입니다. 쓸 파일은 bin 또는 Intel hex 형식이면 됩니다.</p>
+<p>이 글은 M55M1 보드와 Nu-Link2 를 연결해 놓고 프로그램을 처음 켜는 순간부터 Start 를 누르기 직전까지를 화면 순서대로 따라갑니다. 화면은 ICP Programming Tool 3.21(Build 7829r)입니다. 마지막 Start 는 예시 파일이라 누르지 않았습니다.</p>
+<h2>STEP 1. 내려받기와 연결</h2>
+<p>Nuvoton 홈페이지의 Software and Tool &gt; Software Tool &gt; Programming Tool 페이지에 있습니다.</p>
+<p>https://www.nuvoton.com/tool-and-software/software-tool/programmer-tool/</p>
+<p>목록에 NuMicro_ISP_Programming_Tool, Nuvoton 8051 ISP-ICP Programmer 처럼 이름이 비슷한 항목이 함께 있으니 이름에 ICP_Programming_Tool 이 들어간 것을 고르면 됩니다. 2026년 10월 기준 최신판은 V3.23.7973r 입니다.</p>
+<ul>
+<li>PC 와 Nu-Link 를 USB 케이블로 연결합니다</li>
+<li>Nu-Link 와 대상 보드를 디버그 커넥터로 연결합니다</li>
+</ul>
+<h2>STEP 2. 시작 창에서 시리즈 고르기</h2>
+<p>프로그램을 실행하면 언어와 MCU Series 를 고르는 창이 먼저 나옵니다.</p>
+<figure><img src="/assets/img/224441337449_01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>시작 창에서 MCU Series of Tool 을 M55M1 Series 로 고른 모습. 고른 뒤 Continue &gt;&gt; 를 누릅니다.</p>
+<figure><img src="/assets/img/224441337449_02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>MCU Series of Tool 목록에서 M55M1 Series 를 찾는 모습(빨간 상자). 시리즈가 많아서 스크롤해서 찾아야 합니다.</p>
+<p>여기서 가장 많이 틀립니다. 칩 이름과 시리즈 이름이 항상 같지는 않습니다. 창의 Selection Tips 를 누르면 지원 칩 표가 열리고, 표의 Series of Tool 칸에 골라야 할 시리즈가 적혀 있습니다.</p>
+<ul>
+<li>N76E003, MS51, ML51, MG51 → 8051 1T Series</li>
+<li>M031, M032, M030 → M031 Series</li>
+<li>NUC122, NUC123, NUC130, NUC131, NUC140 → NUC100 Series</li>
+<li>Mini51, Mini55, Mini58 → Mini51 Series</li>
+<li>M451, M4521 → M451 Series</li>
+<li>M251, M460, M480, M55M1 → 이름 그대로 M251 Series, M460 Series, M480 Series, M55M1 Series</li>
+</ul>
+<p>이 글에서는 M55M1 Series 를 골랐습니다. 처음 켜면 다른 시리즈가 미리 선택되어 있을 수 있습니다. 이 PC 에서는 NUC100 Series 가 선택되어 있었으니, 그대로 Continue 를 누르지 말고 꼭 칩에 맞게 바꾸세요. 이 창에서 Esc 를 누르면 Quit 과 똑같이 프로그램이 꺼지니 주의하세요.</p>
+<h2>STEP 3. 주 화면 - 연결 전</h2>
+<figure><img src="/assets/img/224441337449_03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>M55M1 Series 주 화면. Status 에 Disconnected 가 빨간 글씨로 표시됩니다.</p>
+<p>위에서부터 Status, Load File, Chip Settings 가 있고 아래로 내리면 데이터 표시 영역과 Programming 영역이 나옵니다. M55M1 은 APROM, APROMNS, LDROM, OTP, ROTPK, SPIM 칸이 있습니다. 고른 시리즈에 따라 칸 구성이 달라집니다.</p>
+<p>Status 의 Connect 를 누릅니다.</p>
+<h2>STEP 4. 펌웨어 버전 경고가 뜨면</h2>
+<figure><img src="/assets/img/224441337449_04.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Connect 를 누르자 뜬 경고 창. Nu-Link 펌웨어(7973)가 프로그램(7829)보다 새 버전이라는 내용입니다.</p>
+<p>Application internal version is not matched! 경고입니다. Nu-Link 펌웨어가 프로그램보다 새 버전일 때 뜨고, 옛 Nu-Link 펌웨어로 되돌릴지 묻습니다. 여기서는 No 를 눌러 Nu-Link 펌웨어를 그대로 두었고, 그래도 연결은 됐습니다.</p>
+<p>최신판 프로그램 이름(V3.23.7973r)에 같은 번호 7973 이 들어 있으니, 프로그램을 최신판으로 올리는 쪽이 펌웨어를 내리는 것보다 깔끔합니다.</p>
+<h2>STEP 5. 연결 확인</h2>
+<figure><img src="/assets/img/224441337449_05.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>연결된 화면. Part No. 에 M55M1H2LJAE 가 표시되고 칩 정보가 함께 뜹니다.</p>
+<p>상태가 Chip Connected with Nu-Link2 로 바뀌고 Part No. 칸에 칩 품번이 나옵니다. 칩 정보 창에는 APROM 2M, LDROM 8K, ITCM 64K, DTCM 128K 같은 메모리 크기와 UID, XOM, PLM</p>
+<figure><img src="/assets/img/224441337449_06.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>APROM 버튼을 누르면 뜨는 열기 창. 파일 형식은 Binary Files (*.bin;*.hex;*.rom) 입니다.</p>
+<figure><img src="/assets/img/224441337449_07.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>파일을 불러온 뒤. File Name 에 경로가 들어가고 아래에 크기와 체크섬이 표시됩니다.</p>
+<p>파일을 고르면 File not load. 자리에 size: 256 Bytes, checksum: 7f80 처럼 크기와 체크섬이 나옵니다. 여기서는 화면 설명용으로 만든 256바이트짜리 예시 파일을 불러왔습니다. M55M1 의 APROM Base 는 00100000 으로 표시됩니다.</p>
+<h2>STEP 7. 파일 내용 확인 - File Data 탭</h2>
+<figure><img src="/assets/img/224441337449_08.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>화면을 아래로 내리면 File Data 탭에 불러온 파일 내용이 16진수로 보입니다.</p>
+<p>File Data 탭은 불러온 파일, On-board Flash 탭은 칩 플래시, Offline Flash 탭은 Nu-Link 에 저장된 오프라인 데이터를 보여 줍니다. 오른쪽 8 bits, 16 bits, 32 bits 로 보기 단위를 바꾸고 Refresh 로 다시 읽습니다. 쓰기 전에 파일이 맞는지 여기서 한 번 보는 습관을 들이면 좋습니다.</p>
+<h2>STEP 8. 칩 설정 - Setting</h2>
+<p>Chip Settings 의 Setting 버튼을 누르면 Chip Settings 창이 뜹니다. 연결 전에는 이 버튼이 눌리지 않습니다.</p>
+<figure><img src="/assets/img/224441337449_09.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Chip Settings 창. M55M1 은 CONFIG 0-6, CONFIG 8-10, NSCBA, XOM, DPM, PLM 탭으로 나뉩니다.</p>
+<p>부팅 위치(Chip Booting Selection), Brown Out Voltage, Watchdog Timer Mode, Boot Loader ISP Mode, Disable ICE Function 같은 항목이 있습니다. 무엇을 바꾸는지 모르는 항목은 건드리지 말고 Cancel 로 닫는 것이 안전합니다. 이 글에서도 Cancel 로 닫았습니다.</p>
+<h2>STEP 9. 쓸 영역과 옵션 고르기</h2>
+<figure><img src="/assets/img/224441337449_10.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>맨 아래 Programming 영역. 쓸 영역을 체크하고 Start 를 누릅니다.</p>
+<p>파일을 불러온 뒤 보니 APROM 이 체크되어 있었습니다. 칩 설정까지 쓰려면 Chip Setting 도 체크합니다. Start 왼쪽의 Options 를 누르면 Program Option 창이 뜹니다.</p>
+<figure><img src="/assets/img/224441337449_11.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Program Option 창. 지우기, 쓰기, 검증 동작과 오프라인 모드를 고릅니다.</p>
+<p>이 PC 에서 열었을 때 Erase, Erase Whole Chip, Program, Check DPM, Verify, Reset Chip after Programming 이 체크되어 있었습니다. Erase Whole Chip 이 켜져 있으면 쓰기 전에 APROM, LDROM, Data Flash, config bits 를 모두 지웁니다. 일부 영역만 바꾸려는 경우라면 Start 전에 꼭 확인하세요.</p>
+<h2>STEP 10. Start</h2>
+<p>여기까지 확인했으면 Start 를 누릅니다. 진행 막대가 표시되고 끝나면 성공 또는 실패를 알리는 창이 뜹니다. 이 글은 예시 파일이라 Start 는 누르지 않았습니다.</p>
+<h2>자주 만나는 오류 - 시리즈를 잘못 골랐을 때</h2>
+<figure><img src="/assets/img/224441337449_12.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>같은 M55M1 보드를 NUC100 Series 로 열고 Connect 를 누른 화면. Target CPUID is not a Cortex-M0 device. 오류가 뜹니다.</p>
+<p>NUC100 Series 는 Cortex-M0 칩용이라 M55M1 을 알아보지 못합니다. 이 오류가 보이면 프로그램을 다시 켜고 시작 창에서 시리즈부터 확인하세요. 주 화면의 칸 구성도 시리즈마다 다르다는 점이 이 화면에서 보입니다.</p>
+<h2>알아 두면 좋은 메뉴</h2>
+<figure><img src="/assets/img/224441337449_13.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Tool 메뉴. Create Offline USB/SD File, Merge File Tool 등이 있습니다.</p>
+<figure><img src="/assets/img/224441337449_14.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Operation 메뉴. Erase Offline Data on Nu-Link, Erase Whole Target Chip 이 있습니다.</p>
+<ul>
+<li>Project &gt; Import, Export : 설정을 프로젝트 파일로 저장하고 불러옵니다</li>
+<li>Chips : 프로그램을 끄지 않고 다른 시리즈로 바꿉니다</li>
+<li>Tool &gt; Merge File Tool : 파일 여러 개를 하나로 합칩니다</li>
+<li>Operation &gt; Erase Whole Target Chip : 칩 플래시 전체를 지웁니다</li>
+<li>Help &gt; Version Check : 새 버전이 있는지 확인합니다</li>
+</ul>
+<h2>오프라인 모드 한 줄 정리</h2>
+<p>Program Option 에서 Offline Programming Mode 를 체크하고 Start 를 누르면 데이터가 칩이 아니라 Nu-Link 에 저장됩니다. 그 다음부터는 PC 없이 Nu-Link 의 버튼으로 칩에 씁니다. Nu-Link2-Pro 는 USB 메모리나 SD 카드도 쓸 수 있고, 이때는 Tool &gt; Create Offline USB/SD File 로 파일을 만듭니다.</p>
+<h2>정리</h2>
+<p>순서는 시리즈 고르기, Connect, 파일 불러오기, File Data 확인, 영역과 Options 확인, Start 입니다. 막히는 곳은 대부분 첫 단계인 시리즈 선택이고, Connect 했는데 품번이 안 나오면 시리즈부터 다시 보면 됩니다.</p>
+<hr>
+<p>이 글은 네이버 블로그에도 있습니다: <a href="https://blog.naver.com/nuvoton-dev/224441337449">https://blog.naver.com/nuvoton-dev/224441337449</a></p>
+{% endraw %}

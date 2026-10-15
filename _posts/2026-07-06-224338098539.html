@@ -6,21 +6,21 @@ description: "1. 개요 및 배경"
 naver_logno: 224338098539
 ---
 {% raw %}
-<p>1. 개요 및 배경</p>
+<h2>1. 개요 및 배경</h2>
 <p>임베디드 하드웨어 설계 시 정밀 아날로그 센서 값을 읽기 위해 마이크로컨트롤러(MCU) 내부의 아날로그-디지털 변환기(ADC)를 자주 사용합니다.</p>
 <p>이때 전압 분해능(Resolution)을 극대화하기 위해 ADC의 기준 전압인 VREF를 MCU 공급 전압인 AVDD(예: 3.3V) 대신 내부의 정밀 밴드갭 기준 전압(예: 내장 2.048V)으로 낮추어 설정하는 설계 기법이 널리 쓰입니다.</p>
 <p>문제는 증폭회로(OP-Amp 등)의 최대 출력 전압이 3.3V까지 올라갈 수 있는 설계 구조일 때 발생합니다.</p>
 <p>입력 전압인 VIN이 VREF인 2.048V를 초과하여 3.3V까지 상승할 경우, 이것이 MCU 내부의 정전기 방지(ESD) 보호 다이오드를 켜서 누설 전류(Injection Current)를 유발하거나, 인접 아날로그 채널의 샘플링 정확도를 떨어뜨리거나, 심지어 칩에 물리적 손상을 입히지 않을까 하는 실무적인 의문과 우려가 생깁니다.</p>
 <p>이 가이드북은 누보톤 M091 시리즈 개발 보드인 NuMaker-M091YD를 사용한 실제 입력 전류 측정 실험을 기반으로, VIN이 VREF를 초과할 때 칩에 미치는 영향과 안정적인 내장 VREF 제어를 위한 필수 펌웨어 레지스터 설정법을 제시합니다.</p>
-<p>2. 개발 보드를 활용한 누설 전류(Injection Current) 측정 실험</p>
+<h2>2. 개발 보드를 활용한 누설 전류(Injection Current) 측정 실험</h2>
 <p>검증을 위해 누보톤 M091 개발 보드의 VREF 헤더 점퍼(L5)를 제거하여 외부 VREF 공급 라인(AVDD)을 물리적으로 차단하고, 내장 VREF 기능을 활성화한 상태에서 실험을 진행했습니다.</p>
 <p>누설 전류 측정을 위해 디지털 입력 회로를 차단하고(GPIO_DISABLE_DIGITAL_PATH 함수 사용) PB.7 핀을 ADC 채널 7로 할당하여 1ms 주기로 샘플링을 진행하며 입력 핀으로 흘러 들어가는 전류 값을 정밀 측정했습니다.</p>
-<p>실험 조건별 입력 핀(VIN) 전류 측정 결과</p>
+<h3>실험 조건별 입력 핀(VIN) 전류 측정 결과</h3>
 <p>조건 1. 외부 VREF 공급 모드 (VREF = 3.3V, VIN = 3.3V 인가 시)</p>
-<p>- 입력 핀으로 유입되는 전류량: 4.6 nA</p>
+<ul style="line-height:1.9;"><li>입력 핀으로 유입되는 전류량: 4.6 nA</li></ul>
 <p>조건 2. 내장 VREF 동작 모드 (VREF = 2.048V, VIN = 3.3V 인가 시)</p>
-<p>- 입력 핀으로 유입되는 전류량: 9.7 nA</p>
-<p>3. FAE 하드웨어 분석 및 해석</p>
+<ul style="line-height:1.9;"><li>입력 핀으로 유입되는 전류량: 9.7 nA</li></ul>
+<h2>3. FAE 하드웨어 분석 및 해석</h2>
 <p>실험 결과에 따르면, VIN이 VREF인 2.048V를 1.2V 이상 초과하여 3.3V까지 상승하더라도 입력 핀으로 흘러 들어가는 전류는 9.7nA 수준에 불과합니다. 이는 매우 정상적인 범위의 마이크로 누설 전류로, 칩을 파괴하거나 오동작을 일으키는 주입 전류(Injection Current)가 아님을 입증합니다.</p>
 <p>이러한 물리적 거동이 나타나는 이유는 SAR(Successive Approximation Register) ADC의 내부 구조 때문입니다.</p>
 <p>VREF는 비교기(Comparator)와 매칭되는 내부 디지털-아날로그 변환기(DAC) 커패시터 네트워크의 기준 전압으로만 연결될 뿐, 입력 핀(VIN)의 물리적 클램핑 라인이 아닙니다.</p>
@@ -28,73 +28,76 @@ naver_logno: 224338098539
 <p>따라서 입력 전압인 VIN이 VREF보다 높더라도 AVDD(3.3V)를 초과하지 않는다면 ESD 다이오드가 켜지지 않으므로 전류 주입 현상이 발생하지 않습니다.</p>
 <p>다만, 데이터시트 스펙에 명시된 VIN 범위(0 ~ VREF)는 ADC가 디지털 값으로 정상 변환할 수 있는 유효 변환 범위(Effective Range)를 뜻하므로, VIN이 VREF를 초과하면 ADC 출력값은 최대값(12비트 기준 4095)으로 포화(Saturation)되어 신호 해석은 불가능해집니다.</p>
 <p>만약 VIN 전압이 아날로그 공급 전압인 AVDD를 초과하게 되면, 그 즉시 내부 보호 다이오드가 순방향 도통되면서 수 밀리암페어(mA) 단위의 파괴적인 주입 전류가 흘러 들어가 ADC 정확도가 완전히 붕괴되고 칩 내부 래치업(Latch-up) 손상을 유발하므로 이는 철저히 방지해야 합니다.</p>
-<p>4. BSP 기반 내부 VREF 제어 펌웨어 구현법</p>
+<h2>4. BSP 기반 내부 VREF 제어 펌웨어 구현법</h2>
 <p>누보톤 MCU에서 내부 전압 기준 소스(Internal VREF)를 2.048V로 설정하고 하드웨어 사전 충전(Preload) 기능을 제어하여 아날로그 회로를 완벽하게 활성화하는 C 코드 가이드입니다.</p>
-<p>#include &lt;stdio.h&gt;</p>
-<p>#include &quot;NuMicro.h&quot;</p>
-<p>void SYS_Init(void)</p>
-<p>{</p>
-<p>// 시스템 락 해제</p>
-<p>SYS_UnlockReg();</p>
-<p>// 48MHz 내부 고속 RC 오실레이터(HIRC) 활성화 및 시스템 클럭 지정</p>
-<p>CLK_EnableXtalRC(CLK_PWRCTL_HIRCEN_Msk);</p>
-<p>CLK_WaitClockReady(CLK_STATUS_HIRCSTB_Msk);</p>
-<p>CLK_SetHCLK(CLK_CLKSEL0_HCLKSEL_HIRC, CLK_CLKDIV0_HCLK(1));</p>
-<p>// ADC 모듈 클럭 인가 및 분주 설정</p>
-<p>CLK_EnableModuleClock(ADC_MODULE);</p>
-<p>CLK_SetModuleClock(ADC_MODULE, CLK_CLKSEL2_ADCSEL_PCLK1, CLK_CLKDIV0_ADC(1));</p>
-<p>// PB.7 핀을 ADC0 채널 7 입력 핀으로 설정</p>
-<p>SYS-&gt;GPB_MFPL = (SYS-&gt;GPB_MFPL &amp; ~SYS_GPB_MFPL_PB7MFP_Msk) | SYS_GPB_MFPL_PB7MFP_ADC0_CH7;</p>
-<p>// 아날로그 입력 전용 핀으로 활용 시, 누설 전류 방지를 위해 해당 핀의 디지털 입력 경로 차단 필수</p>
-<p>GPIO_DISABLE_DIGITAL_PATH(PB, BIT7);</p>
-<p>// 시스템 락 설정</p>
-<p>SYS_LockReg();</p>
-<p>}</p>
-<p>void ADC_Internal_VREF_Setup(void)</p>
-<p>{</p>
-<p>// 1. 내부 온도 센서 및 밴드갭(Band-gap) 기준 전원 활성화</p>
-<p>// 이 레지스터 설정이 인가되어야 내부 VREF 및 DAC 모듈에 기준 전류가 공급됩니다.</p>
-<p>SYS-&gt;TSCTL |= SYS_TSCTL_TSBGEN_Msk;</p>
-<p>// 2. 밴드갭 회로 안정을 위한 200us 지연 대기</p>
-<p>CLK_SysTickDelay(200);</p>
-<p>// 3. VREF 기준 전압을 내장 2.048V로 설정</p>
-<p>// 이 함수가 실행되면 하드웨어적으로 전압 충전을 가속하는 프리로드(Preload) 기능이 자동 켜집니다.</p>
-<p>SYS_SetVRef(SYS_VREFCTL_VREF_2_0V);</p>
-<p>// 4. 프리로드 동작 및 VREF 출력 안정화를 위한 480us 대기 (1uF 외부 디커플링 커패시터 기준)</p>
-<p>CLK_SysTickDelay(480);</p>
-<p>// 5. 안정화 완료 후 프리로드(PRELOADEN) 기능을 수동으로 비활성화</p>
-<p>// 이 기능을 제때 끄지 않으면 내부 VREF 소스의 최대 부하 전류 능력에 악영향을 미쳐 전압 드리프트가 발생할 수 있습니다.</p>
-<p>SYS-&gt;VREFCTL &amp;= ~(SYS_VREFCTL_PRELOADEN_Msk);</p>
-<p>}</p>
-<p>void main(void)</p>
-<p>{</p>
-<p>uint32_t u32Result;</p>
-<p>SYS_Init();</p>
-<p>// 내부 VREF 초기화 가동</p>
-<p>ADC_Internal_VREF_Setup();</p>
-<p>// ADC 파워 온 및 싱글 엔드 단일 사이클 모드 초기화</p>
-<p>ADC_POWER_ON(ADC);</p>
-<p>ADC_Open(ADC, ADC_ADCR_DIFFEN_SINGLE_END, ADC_ADCR_ADMD_SINGLE_CYCLE, BIT7);</p>
-<p>// 샘플링 연장 시간 지정 (임피던스 매칭 안정화)</p>
-<p>ADC_SetExtendSampleTime(ADC, 0, 255);</p>
-<p>while(1)</p>
-<p>{</p>
-<p>// ADC 변환 시작 및 유효 플래그 감시</p>
-<p>ADC_START_CONV(ADC);</p>
-<p>while(!ADC_IS_DATA_VALID(ADC, 7));</p>
-<p>// 데이터 획득</p>
-<p>u32Result = ADC_GET_CONVERSION_DATA(ADC, 7);</p>
-<p>CLK_SysTickDelay(1000);</p>
-<p>}</p>
-<p>}</p>
-<p>5. 임베디드 FAE 리스크 분석 및 예방 대책</p>
-<p>프리로드 레지스터 해제 지연 주의</p>
+<pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>#include &lt;stdio.h&gt;
+#include "NuMicro.h"
+
+void SYS_Init(void)
+{
+    // 시스템 락 해제
+    SYS_UnlockReg();
+    // 48MHz 내부 고속 RC 오실레이터(HIRC) 활성화 및 시스템 클럭 지정
+    CLK_EnableXtalRC(CLK_PWRCTL_HIRCEN_Msk);
+    CLK_WaitClockReady(CLK_STATUS_HIRCSTB_Msk);
+    CLK_SetHCLK(CLK_CLKSEL0_HCLKSEL_HIRC, CLK_CLKDIV0_HCLK(1));
+    // ADC 모듈 클럭 인가 및 분주 설정
+    CLK_EnableModuleClock(ADC_MODULE);
+    CLK_SetModuleClock(ADC_MODULE, CLK_CLKSEL2_ADCSEL_PCLK1, CLK_CLKDIV0_ADC(1));
+    // PB.7 핀을 ADC0 채널 7 입력 핀으로 설정
+    SYS-&gt;GPB_MFPL = (SYS-&gt;GPB_MFPL &amp; ~SYS_GPB_MFPL_PB7MFP_Msk) | SYS_GPB_MFPL_PB7MFP_ADC0_CH7;
+    // 아날로그 입력 전용 핀으로 활용 시, 누설 전류 방지를 위해 해당 핀의 디지털 입력 경로 차단 필수
+    GPIO_DISABLE_DIGITAL_PATH(PB, BIT7);
+    // 시스템 락 설정
+    SYS_LockReg();
+}
+
+void ADC_Internal_VREF_Setup(void)
+{
+    // 1. 내부 온도 센서 및 밴드갭(Band-gap) 기준 전원 활성화
+    // 이 레지스터 설정이 인가되어야 내부 VREF 및 DAC 모듈에 기준 전류가 공급됩니다.
+    SYS-&gt;TSCTL |= SYS_TSCTL_TSBGEN_Msk;
+    // 2. 밴드갭 회로 안정을 위한 200us 지연 대기
+    CLK_SysTickDelay(200);
+    // 3. VREF 기준 전압을 내장 2.048V로 설정
+    // 이 함수가 실행되면 하드웨어적으로 전압 충전을 가속하는 프리로드(Preload) 기능이 자동 켜집니다.
+    SYS_SetVRef(SYS_VREFCTL_VREF_2_0V);
+    // 4. 프리로드 동작 및 VREF 출력 안정화를 위한 480us 대기 (1uF 외부 디커플링 커패시터 기준)
+    CLK_SysTickDelay(480);
+    // 5. 안정화 완료 후 프리로드(PRELOADEN) 기능을 수동으로 비활성화
+    // 이 기능을 제때 끄지 않으면 내부 VREF 소스의 최대 부하 전류 능력에 악영향을 미쳐 전압 드리프트가 발생할 수 있습니다.
+    SYS-&gt;VREFCTL &amp;= ~(SYS_VREFCTL_PRELOADEN_Msk);
+}
+
+void main(void)
+{
+    uint32_t u32Result;
+    SYS_Init();
+    // 내부 VREF 초기화 가동
+    ADC_Internal_VREF_Setup();
+    // ADC 파워 온 및 싱글 엔드 단일 사이클 모드 초기화
+    ADC_POWER_ON(ADC);
+    ADC_Open(ADC, ADC_ADCR_DIFFEN_SINGLE_END, ADC_ADCR_ADMD_SINGLE_CYCLE, BIT7);
+    // 샘플링 연장 시간 지정 (임피던스 매칭 안정화)
+    ADC_SetExtendSampleTime(ADC, 0, 255);
+    while(1)
+    {
+        // ADC 변환 시작 및 유효 플래그 감시
+        ADC_START_CONV(ADC);
+        while(!ADC_IS_DATA_VALID(ADC, 7));
+        // 데이터 획득
+        u32Result = ADC_GET_CONVERSION_DATA(ADC, 7);
+        CLK_SysTickDelay(1000);
+    }
+}</code></pre>
+<h2>5. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
+<h3>프리로드 레지스터 해제 지연 주의</h3>
 <p>내부 VREF 동작을 켠 후 SYS_VREFCTL 레지스터의 프리로드(PRELOADEN) 비트를 수동으로 클리어하지 않고 방치하면, VREF 핀의 최대 로드 전류 구동 능력이 왜곡되어 ADC 샘플링 시마다 기준 전압이 미세하게 요동치며 오차가 발생할 수 있습니다. 위 예제 코드의 5단계 시퀀스를 준수하여 안정화 대기 시간 직후 반드시 해당 비트를 해제하십시오.</p>
-<p>인풋 가드링(Input Guardring) 및 신호 무결성</p>
+<h3>인풋 가드링(Input Guardring) 및 신호 무결성</h3>
 <p>입력 전압 VIN이 VREF(2.048V)보다 높은 전압 대역을 유지하는 동안에는 변환 값이 포화 상태가 되어 물리적인 핀 간 누설이 인접 채널로 영향을 줄 수 있습니다. 정밀 계측 설계 시에는 아날로그 입력 채널 패턴(Trace) 주변을 Ground 가드링 회로로 감싸 전류 누설 간섭을 완전히 차단하십시오.</p>
-<p>6. 참고 자료 및 레퍼런스 (References)</p>
+<h2>6. 참고 자료 및 레퍼런스 (References)</h2>
 <p>본 아티클은 누보톤의 공식 기술 지원 FAQ 문서와 M091 시리즈 기술 레퍼런스 매뉴얼(TRM)의 12비트 SAR ADC 아날로그 입력 전기적 특성(Electrical Characteristics) 명세서를 기반으로 작성되었습니다. 또한 개발 보드 NuMaker-M091YD 상에서의 L5 헤더 제거 테스트 결과와 실제 VREF 설정 레지스터 코드를 검증하여 FAE 관점에서 정리한 기술 가이드 문서입니다.</p>
-<p>---</p>
+<hr>
 <p>💡👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
 <p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>
 <hr>

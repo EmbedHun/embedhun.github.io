@@ -6,78 +6,78 @@ description: "1. 개요 및 배경"
 naver_logno: 224338147756
 ---
 {% raw %}
-<p>1. 개요 및 배경</p>
+<h2>1. 개요 및 배경</h2>
 <p>임베디드 하드웨어 개발 시, 대다수의 누보톤용 표준 BSP 예제 코드들은 윈도우 환경의 상용 툴 체인인 Keil MDK 또는 IAR EWARM 컴파일러에 종속된 프로젝트 파일들을 기반으로 배포됩니다.</p>
 <p>하지만 현대의 빌드 서버 구축, 지속적 통합(CI/CD) 파이프라인 연동, 혹은 리눅스(Linux) 환경에서 독자적인 오픈소스 개발 플랫폼(VS Code 등)을 운용하는 다수의 리눅스 임베디드 엔지니어들은 Keil 대신 100% 무료 툴체인인 GNU Arm Embedded Toolchain(arm-none-eabi-gcc)을 필수적으로 사용하고자 합니다.</p>
 <p>이를 구현하려면 개발자가 직접 BSP 소스코드의 구성 트리와 헤더 경로를 모으고, 코어 아키텍처에 부합하는 컴파일러 지시어 옵션을 설정하여 메이크파일(Makefile) 빌드 스크립트를 수작업으로 작성해야 합니다.</p>
 <p>이 가이드북은 누보톤 Cortex-M0(M031/M032 등) 및 Cortex-M4(M480 등) 코어 기반 칩셋을 리눅스 환경에서 순수 커맨드 라인으로 빌드하고 오픈소스 디버깅 라이터 툴인 OpenOCD를 통해 타겟 보드에 펌웨어를 직접 업로드하는 완벽한 GCC Makefile 템플릿과 빌드 구축 절차를 상세히 공유합니다.</p>
-<p>2. 개발 툴체인 및 패키지 설치 절차</p>
+<h2>2. 개발 툴체인 및 패키지 설치 절차</h2>
 <p>가이드를 진행하기 전 리눅스 터미널(Ubuntu/Debian 기준)에 빌드를 위한 도구 세트 및 프로그래밍 라이브러리를 먼저 설치해야 합니다.</p>
-<p>터미널 명령</p>
-<p>$ sudo apt-get update</p>
-<p>$ sudo apt-get install build-essential git</p>
-<p>$ sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi</p>
-<p>$ sudo apt-get install openocd</p>
-<p>3. 누보톤용 최적 GCC Makefile 템플릿 구성</p>
+<h3>터미널 명령</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>$ sudo apt-get update
+$ sudo apt-get install build-essential git
+$ sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi
+$ sudo apt-get install openocd</code></pre>
+<h2>3. 누보톤용 최적 GCC Makefile 템플릿 구성</h2>
 <p>누보톤 Cortex-M0 마이크로컨트롤러(M031 기반) 프로젝트를 완전 컴파일하기 위한 정석적인 GCC Makefile 설계 템플릿 코드 전문입니다.</p>
-<p>[Makefile 코드 소스]</p>
-<p>[1. 컴파일 툴 지정]</p>
-<p>CC = arm-none-eabi-gcc</p>
-<p>OBJCOPY = arm-none-eabi-objcopy</p>
-<p>SIZE = arm-none-eabi-size</p>
-<p>[2. 타겟 프로젝트명 정의]</p>
-<p>TARGET = Nuvoton_M031_App</p>
-<p>[3. 누보톤 MCU 아키텍처 코어 옵션 지정 (Cortex-M0, Thumb 모드)]</p>
-<p>MCU_FLAGS = -mcpu=cortex-m0 -mthumb</p>
-<p>[4. 컴파일러 최적화 및 디버그 기호 옵션 설정]</p>
+<h3>[Makefile 코드 소스]</h3>
+<h3>[1. 컴파일 툴 지정]</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>CC = arm-none-eabi-gcc
+OBJCOPY = arm-none-eabi-objcopy
+SIZE = arm-none-eabi-size</code></pre>
+<h3>[2. 타겟 프로젝트명 정의]</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>TARGET = Nuvoton_M031_App</code></pre>
+<h3>[3. 누보톤 MCU 아키텍처 코어 옵션 지정 (Cortex-M0, Thumb 모드)]</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>MCU_FLAGS = -mcpu=cortex-m0 -mthumb</code></pre>
+<h3>[4. 컴파일러 최적화 및 디버그 기호 옵션 설정]</h3>
 <p>[기능 설명: -ffunction-sections 및 -fdata-sections는 미사용 함수/데이터를 링커가 잘라내도록 최적화]</p>
-<p>CFLAGS = $(MCU_FLAGS) -O2 -g -Wall -ffunction-sections -fdata-sections</p>
-<p>[5. 매크로 정의 추가 (오픈소스 BSP 타겟 정의)]</p>
-<p>DEFINES = -DDEBUG_PORT=UART0 -DARM_MATH_CM0</p>
-<p>[6. 헤더 파일 인클루드 경로 지정]</p>
-<p>INC_DIRS = \</p>
-<p>-I./Library/Device/Nuvoton/M031/Include \</p>
-<p>-I./Library/CMSIS/Include \</p>
-<p>-I./Library/StdDriver/Include \</p>
-<p>-I./UserApp</p>
-<p>[7. 소스코드 파일 경로 매핑 (.c 및 스타트업 어셈블리 .S 파일)]</p>
-<p>SRCS = \</p>
-<p>./Library/Device/Nuvoton/M031/Source/system_M031Series.c \</p>
-<p>./Library/StdDriver/Source/clk.c \</p>
-<p>./Library/StdDriver/Source/sys.c \</p>
-<p>./Library/StdDriver/Source/uart.c \</p>
-<p>./UserApp/main.c</p>
-<p>[GCC 호환 스타트업 어셈블리 파일 지정 필수]</p>
-<p>ASMS = ./Library/Device/Nuvoton/M031/Source/GCC/startup_M031Series.S</p>
-<p>[8. 링커 스크립터 파일(.ld) 및 링커 옵션]</p>
-<p>[기능 설명: --gc-sections 옵션을 주어 링커 단에서 데드 코드를 물리 삭제 처리]</p>
-<p>LDFLAGS = $(MCU_FLAGS) -T ./Library/Device/Nuvoton/M031/Source/GCC/gcc_arm.ld \</p>
-<p>-Wl,--gc-sections --specs=nano.specs -Wl,-Map=$(TARGET).map</p>
-<p>OBJS = $(SRCS:.c=.o) $(ASMS:.S=.o)</p>
-<p>all: $(TARGET).bin $(TARGET).hex</p>
-<p>$(TARGET).elf: $(OBJS)</p>
-<p>$(CC) $(OBJS) $(LDFLAGS) -o $@</p>
-<p>$(SIZE) $@</p>
-<p>%.o: %.c</p>
-<p>$(CC) -c $(CFLAGS) $(DEFINES) $(INC_DIRS) $&lt; -o $@</p>
-<p>%.o: %.S</p>
-<p>$(CC) -c $(CFLAGS) $(DEFINES) $(INC_DIRS) $&lt; -o $@</p>
-<p>%.bin: %.elf</p>
-<p>$(OBJCOPY) -O binary $&lt; $@</p>
-<p>%.hex: %.elf</p>
-<p>$(OBJCOPY) -O ihex $&lt; $@</p>
-<p>clean:</p>
-<p>rm -f $(OBJS) $(TARGET).elf $(TARGET).bin $(TARGET).hex $(TARGET).map</p>
-<p>flash: $(TARGET).bin</p>
-<p>openocd -f interface/nulink.cfg -f target/numicro.cfg -c &quot;program $(TARGET).bin 0x00000000 verify reset exit&quot;</p>
-<p>4. 임베디드 FAE 리스크 분석 및 예방 대책</p>
-<p>GCC 스타트업 파일 매핑 오류에 따른 부트 실패 리스크</p>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>CFLAGS = $(MCU_FLAGS) -O2 -g -Wall -ffunction-sections -fdata-sections</code></pre>
+<h3>[5. 매크로 정의 추가 (오픈소스 BSP 타겟 정의)]</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>DEFINES = -DDEBUG_PORT=UART0 -DARM_MATH_CM0</code></pre>
+<h3>[6. 헤더 파일 인클루드 경로 지정]</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>INC_DIRS = \
+-I./Library/Device/Nuvoton/M031/Include \
+-I./Library/CMSIS/Include \
+-I./Library/StdDriver/Include \
+-I./UserApp</code></pre>
+<h3>[7. 소스코드 파일 경로 매핑 (.c 및 스타트업 어셈블리 .S 파일)]</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>SRCS = \
+./Library/Device/Nuvoton/M031/Source/system_M031Series.c \
+./Library/StdDriver/Source/clk.c \
+./Library/StdDriver/Source/sys.c \
+./Library/StdDriver/Source/uart.c \
+./UserApp/main.c</code></pre>
+<h3>[GCC 호환 스타트업 어셈블리 파일 지정 필수]</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>ASMS = ./Library/Device/Nuvoton/M031/Source/GCC/startup_M031Series.S</code></pre>
+<h3>[8. 링커 스크립터 파일(.ld) 및 링커 옵션]</h3>
+<h3>[기능 설명: --gc-sections 옵션을 주어 링커 단에서 데드 코드를 물리 삭제 처리]</h3>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>LDFLAGS = $(MCU_FLAGS) -T ./Library/Device/Nuvoton/M031/Source/GCC/gcc_arm.ld \
+-Wl,--gc-sections --specs=nano.specs -Wl,-Map=$(TARGET).map
+OBJS = $(SRCS:.c=.o) $(ASMS:.S=.o)
+all: $(TARGET).bin $(TARGET).hex
+$(TARGET).elf: $(OBJS)
+$(CC) $(OBJS) $(LDFLAGS) -o $@
+$(SIZE) $@
+%.o: %.c
+$(CC) -c $(CFLAGS) $(DEFINES) $(INC_DIRS) $&lt; -o $@
+%.o: %.S
+$(CC) -c $(CFLAGS) $(DEFINES) $(INC_DIRS) $&lt; -o $@
+%.bin: %.elf
+$(OBJCOPY) -O binary $&lt; $@
+%.hex: %.elf
+$(OBJCOPY) -O ihex $&lt; $@
+clean:
+rm -f $(OBJS) $(TARGET).elf $(TARGET).bin $(TARGET).hex $(TARGET).map
+flash: $(TARGET).bin
+openocd -f interface/nulink.cfg -f target/numicro.cfg -c "program $(TARGET).bin 0x00000000 verify reset exit"</code></pre>
+<h2>4. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
+<h3>GCC 스타트업 파일 매핑 오류에 따른 부트 실패 리스크</h3>
 <p>누보톤 BSP 패키지 내부에는 컴파일러 종류에 따라 여러 개의 스타트업 파일이 흩어져 존재합니다. Keil 빌드용 어셈블리(startup_M031Series.s)를 GCC Makefile 컴파일러 인자로 사용하면 전처리 지시어 파싱 에러로 인해 정상 빌드되지 않습니다. Makefile 작성 시 반드시 &#x27;Source/GCC/&#x27; 하위에 위치하는 대문자 확장자를 가진 GCC 전용 파일(startup_M031Series.S)을 선택하고 인가해야 정상 인터럽트 벡터 셋업 및 초기화 분기가 실행됩니다.</p>
-<p>메모리 정렬 불일치에 따른 하드웨어 하드폴트 리스크</p>
+<h3>메모리 정렬 불일치에 따른 하드웨어 하드폴트 리스크</h3>
 <p>GNU GCC 링커는 구조체나 전역 변수를 배치할 때 바이트 정렬 최적화를 매우 엄격하게 적용합니다. 만약 외부 라이브러리나 펌웨어 소스 중 바이트 정렬 명시 없이 형변환 캐스팅 연산이 자주 활용되는 코드를 컴파일하면, 32비트 버스 엑세스 오정렬(Alignment Mismatch) 하드웨어 예외를 일으키며 런타임 중에 코드가 정지할 수 있습니다. 이를 예방하기 위해 빌드 경고 메세지(Warning)를 꼼꼼히 살피고, 구조체 정의 시 팩킹 지시어(__attribute__((packed)))를 사용하여 물리 데이터 맵을 명확히 고정해 주십시오.</p>
-<p>5. 참고 자료 및 레퍼런스 (References)</p>
+<h2>5. 참고 자료 및 레퍼런스 (References)</h2>
 <p>본 가이드는 GNU Arm Embedded Toolchain gcc 컴파일러 설명 문서와 OpenOCD 공식 기술지원 타겟 설정 규격을 바탕으로 제작되었습니다. 또한 OpenNuvoton 공식 깃허브 BSP 저장소의 GNU 링커 스크립터 파일(.ld) 소스 구조와 FAE 실무 엔지니어의 크로스 컴파일 환경 최적화 이력을 검증하여 기록한 임베디드 기술 자료입니다.</p>
-<p>---</p>
+<hr>
 <p>💡</p>
 <p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
 <p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>

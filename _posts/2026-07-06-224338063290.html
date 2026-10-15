@@ -6,74 +6,70 @@ description: "1. 개요 및 배경"
 naver_logno: 224338063290
 ---
 {% raw %}
-<p>1. 개요 및 배경</p>
+<h2>1. 개요 및 배경</h2>
 <p>마이크로컨트롤러(MCU)를 사용해 다자리 7세그먼트 LED 디스플레이를 구동할 때, 많은 개발자가 이전 자릿수의 숫자 잔상이 다음 자릿수에 희미하게 겹쳐 보이는 고스팅(Ghosting) 현상을 겪습니다.</p>
 <p>이 가이드북은 누보톤의 고성능 8비트 8051 MCU인 MG51FB9AE를 활용하여 다중 스캐닝(Multiplexing) 제어 시 발생하는 고스팅의 물리적 원인을 진단하고, 이를 코드로 해결하는 실무 가이드를 제공합니다.</p>
 <p>(아티클 이미지 삽입부: segment_ghosting_comparison_1783313138725.png)</p>
-<p>2. 다중 스캐닝(Multiplexing)의 목적과 MG51 선택 이유</p>
-<p>1) 다중 스캐닝의 이점</p>
+<h2>2. 다중 스캐닝(Multiplexing)의 목적과 MG51 선택 이유</h2>
+<h3>1) 다중 스캐닝의 이점</h3>
 <p>4자리 7세그먼트 디스플레이를 각 세그먼트마다 개별적으로 제어하면 공통 전원을 포함해 총 32개의 GPIO 핀이 필요합니다. 이는 단가가 높고 패키지 핀 수가 많은 MCU를 써야 하므로 BOM 단가 상승의 원인이 됩니다.</p>
 <p>반면, 세그먼트 라인 8개(a~g, Dot)와 각 자릿수의 공통 단자(Common Anode/Cathode) 4개를 묶어 순차적으로 켜는 다중 스캐닝 방식을 쓰면 단 12개의 GPIO 핀만으로 구동이 가능하여, TSSOP20 소형 패키지인 MG51FB9AE로도 여유롭게 회로를 구성할 수 있습니다.</p>
-<p>2) MG51FB9AE MCU의 특징</p>
-<p>- 24MHz 고속 동작: 기존에 범용으로 사용되던 N76E003/N76S003(16MHz)과 핀-투-핀(Pin-to-Pin) 호환성을 유지하면서도, 내부 클럭이 24MHz로 동작하여 타이머 제어 및 PWM 분해능이 훨씬 정밀합니다.</p>
-<p>- 주파수 제어 정밀도 향상: 주파수 발진기나 제어 모듈 설계 시 분주 단계가 세밀해져 에러율이 감소합니다.</p>
-<p>3. 고스팅(Ghosting) 발생의 물리적 원인 분석</p>
+<h3>2) MG51FB9AE MCU의 특징</h3>
+<ul style="line-height:1.9;"><li>24MHz 고속 동작: 기존에 범용으로 사용되던 N76E003/N76S003(16MHz)과 핀-투-핀(Pin-to-Pin) 호환성을 유지하면서도, 내부 클럭이 24MHz로 동작하여 타이머 제어 및 PWM 분해능이 훨씬 정밀합니다.</li><li>주파수 제어 정밀도 향상: 주파수 발진기나 제어 모듈 설계 시 분주 단계가 세밀해져 에러율이 감소합니다.</li></ul>
+<h2>3. 고스팅(Ghosting) 발생의 물리적 원인 분석</h2>
 <p>스캔 전환 속도가 시각의 잔상 효과 기준인 약 60Hz~100Hz 이상이 되면 인간의 눈에는 모든 숫자가 켜져 있는 것처럼 보입니다. 그러나 다음 순서로 넘어갈 때 미세한 스위칭 딜레이가 발생하면 고스팅이 나타납니다.</p>
-<p>1. 트랜지스터 스위칭 지연 (Turn-off Delay)</p>
+<h3>1. 트랜지스터 스위칭 지연 (Turn-off Delay)</h3>
 <p>스캔 라인을 제어하는 스위칭 트랜지스터(NPN/PNP)가 완전히 Off 상태로 돌아가기까지는 물리적인 방전 지연 시간(보통 수 us)이 필요합니다.</p>
-<p>2. 세그먼트 데이터의 조기 전환</p>
+<h3>2. 세그먼트 데이터의 조기 전환</h3>
 <p>1번째 트랜지스터가 완전히 꺼지지 않은 상태에서 MCU가 2번째 자릿수의 데이터를 포트에 미리 써버리면, 아직 꺼지지 않은 1번째 LED에 2번째 숫자의 전류가 흘러 들어가 미세하게 켜지는 잔상이 남게 됩니다.</p>
-<p>4. 펌웨어 해결 방안: 블랭킹 타임(Blanking Time / Dead-time) 삽입</p>
+<h2>4. 펌웨어 해결 방안: 블랭킹 타임(Blanking Time / Dead-time) 삽입</h2>
 <p>해결책은 자릿수 스위칭 제어와 세그먼트 데이터 출력 타이밍 사이에 모든 스캔 라인과 데이터를 차단하는 블랭킹 타임(Dead-time)을 의도적으로 삽입하는 것입니다.</p>
-<p>FAE 표준 제어 시퀀스</p>
-<p>1. 스캔 트랜지스터 Off (모든 Digits = Off)</p>
-<p>2. 세그먼트 포트 출력 클리어 (P1 세그먼트 데이터 = 0x00 또는 High-Z)</p>
-<p>3. 블랭킹 딜레이 (Blanking Delay, 약 20us~50us 대기)</p>
-<p>4. 신규 자릿수 데이터 포트 출력 (P1 = New Data)</p>
-<p>5. 신규 자릿수 스캔 트랜지스터 On (해당 Digit = On)</p>
-<p>5비트 타이머 인터럽트(Timer ISR) 기준 구현 코드</p>
-<p>#include &quot;NuMicro.h&quot;</p>
-<p>// 0~9 및 A~F 매핑 테이블 (공통 음극 기준)</p>
-<p>const uint8_t u8segments[16] = {</p>
-<p>0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,</p>
-<p>0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71</p>
-<p>};</p>
-<p>volatile uint8_t u8CurrentDigit = 0;</p>
-<p>uint8_t u8DisplayBuffer[4] = {1, 2, 3, 4}; // 표시할 숫자: &quot;1234&quot;</p>
-<p>void Timer0_ISR(void) interrupt 1</p>
-<p>{</p>
-<p>// 1. 모든 자릿수 스캔 차단 (Q1~Q4 공통 핀 제어 GPIO Low)</p>
-<p>P00 = 0; P01 = 0; P02 = 0; P03 = 0;</p>
-<p>// 2. 이전 잔여 전하 제거</p>
-<p>P1 = 0x00;</p>
-<p>// 3. 트랜지스터의 소등 시간 및 기생 캐패시턴스 방전 대기</p>
-<p>// 24MHz 클럭 기준 약 30us 루프 지연</p>
-<p>for(volatile uint8_t delay = 0; delay &lt; 60; delay++);</p>
-<p>// 4. 세그먼트 버퍼 데이터 인가</p>
-<p>P1 = u8segments[u8DisplayBuffer[u8CurrentDigit]];</p>
-<p>// 5. 해당하는 자릿수 트랜지스터만 활성화</p>
-<p>switch(u8CurrentDigit)</p>
-<p>{</p>
-<p>case 0: P00 = 1; break; // 1번째 자리 활성화</p>
-<p>case 1: P01 = 1; break; // 2번째 자리 활성화</p>
-<p>case 2: P02 = 1; break; // 3번째 자리 활성화</p>
-<p>case 3: P03 = 1; break; // 4번째 자리 활성화</p>
-<p>}</p>
-<p>// 6. 인덱스 로테이션</p>
-<p>u8CurrentDigit++;</p>
-<p>if(u8CurrentDigit &gt;= 4)</p>
-<p>{</p>
-<p>u8CurrentDigit = 0;</p>
-<p>}</p>
-<p>}</p>
-<p>5. 임베디드 FAE 리스크 분석 및 예방 대책</p>
-<p>밝기 저하(Dimming) 리스크</p>
+<h3>FAE 표준 제어 시퀀스</h3>
+<ol style="line-height:1.9;"><li>스캔 트랜지스터 Off (모든 Digits = Off)</li><li>세그먼트 포트 출력 클리어 (P1 세그먼트 데이터 = 0x00 또는 High-Z)</li><li>블랭킹 딜레이 (Blanking Delay, 약 20us~50us 대기)</li><li>신규 자릿수 데이터 포트 출력 (P1 = New Data)</li><li>신규 자릿수 스캔 트랜지스터 On (해당 Digit = On)</li></ol>
+<h3>5비트 타이머 인터럽트(Timer ISR) 기준 구현 코드</h3>
+<pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>#include "NuMicro.h"
+// 0~9 및 A~F 매핑 테이블 (공통 음극 기준)
+const uint8_t u8segments[16] = {
+    0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,
+    0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71
+};
+volatile uint8_t u8CurrentDigit = 0;
+uint8_t u8DisplayBuffer[4] = {1, 2, 3, 4}; // 표시할 숫자: "1234"
+
+void Timer0_ISR(void) interrupt 1
+{
+    // 1. 모든 자릿수 스캔 차단 (Q1~Q4 공통 핀 제어 GPIO Low)
+    P00 = 0; P01 = 0; P02 = 0; P03 = 0;
+    // 2. 이전 잔여 전하 제거
+    P1 = 0x00;
+    // 3. 트랜지스터의 소등 시간 및 기생 캐패시턴스 방전 대기
+    // 24MHz 클럭 기준 약 30us 루프 지연
+    for(volatile uint8_t delay = 0; delay &lt; 60; delay++);
+    // 4. 세그먼트 버퍼 데이터 인가
+    P1 = u8segments[u8DisplayBuffer[u8CurrentDigit]];
+    // 5. 해당하는 자릿수 트랜지스터만 활성화
+    switch(u8CurrentDigit)
+    {
+        case 0: P00 = 1; break; // 1번째 자리 활성화
+        case 1: P01 = 1; break; // 2번째 자리 활성화
+        case 2: P02 = 1; break; // 3번째 자리 활성화
+        case 3: P03 = 1; break; // 4번째 자리 활성화
+    }
+    // 6. 인덱스 로테이션
+    u8CurrentDigit++;
+    if(u8CurrentDigit &gt;= 4)
+    {
+        u8CurrentDigit = 0;
+    }
+}</code></pre>
+<h2>5. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
+<h3>밝기 저하(Dimming) 리스크</h3>
 <p>고스팅을 잡기 위해 블랭킹 딜레이 루프를 너무 크게 잡으면(예: 200us 이상), LED가 꺼져 있는 시간 비율이 높아져 디스플레이 전체 밝기가 어두워집니다. 타이머 주기와 오실로스코프로 파형을 보며, 잔상이 완전히 사라지는 최소한의 데드타임(일반적으로 10us ~ 30us)을 실험적으로 최적화해 설정하십시오.</p>
-<p>노이즈 및 바이패스 캐패시터</p>
+<h3>노이즈 및 바이패스 캐패시터</h3>
 <p>디스플레이 고속 스캔 시 다수의 LED가 한꺼번에 켜지며 VDD 전원에 순간적인 전압 강하와 서지 노이즈를 유발합니다. 이는 MCU의 오작동 및 리셋(BOD 리셋)을 초래합니다. 7세그먼트 VCC 라인과 공통 전원 보드 초입에 10uF 이상의 탄탈 전해 캐패시터와 0.1uF 세라믹 캐패시터를 병렬 배치하여 전류 서지를 흡수하십시오.</p>
-<p>6. 참고 자료 및 레퍼런스 (References)</p>
+<h2>6. 참고 자료 및 레퍼런스 (References)</h2>
 <p>본 아티클은 누보톤 공식 기술 블로그의 7세그먼트 고스팅 방지 가이드 자료 및 MG51 시리즈 기술 레퍼런스 매뉴얼(TRM)의 사양서 자료를 바탕으로 작성되었습니다. 또한 실제 N76E003 및 MG51 핀 호환 회로 설계 분석 데이터를 대조하여 FAE 관점에서 기술 검증을 수행했습니다.</p>
-<p>---</p>
+<hr>
 <p>💡</p>
 <p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
 <p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>

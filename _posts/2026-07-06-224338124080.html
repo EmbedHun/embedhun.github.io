@@ -6,107 +6,107 @@ description: "1. 개요 및 배경"
 naver_logno: 224338124080
 ---
 {% raw %}
-<p>1. 개요 및 배경</p>
+<h2>1. 개요 및 배경</h2>
 <p>사물인터넷(IoT) 에지 장치나 데이터 수집기 설계 시 대용량 로그 데이터 저장이나 그래픽 이미지를 불러오기 위해 외부 SPI 플래시 메모리(예: Winbond W25Q32)가 필수적으로 활용됩니다.</p>
 <p>그러나 표준 소프트웨어 폴링(Polling) 방식으로 SPI 통신을 수행하면 데이터 1바이트를 보낼 때마다 송신 완료 플래시 플래그가 세팅될 때까지 CPU가 루프를 돌며 대기해야 합니다.</p>
 <p>이로 인해 대용량(수 KB 이상) 데이터를 읽거나 쓸 때 CPU 점유율이 순간적으로 100%까지 치솟아, 실시간 센서 신호 처리나 통신 네트워크 인터럽트를 제때 처리하지 못하고 데이터 패킷이 유실되는 시스템 병목 현상이 일어납니다.</p>
 <p>이 문제를 원천 차단하기 위해 사용되는 기술이 주변장치 직접 메모리 접근(PDMA, Peripheral DMA) 제어 기법입니다.</p>
 <p>이 가이드북은 누보톤 M251/M252 시리즈 마이크로컨트롤러를 바탕으로, SPI 전송 엔진과 2채널 PDMA(송신 및 수신)를 완벽하게 연동시켜 CPU 사용량을 0%에 가깝게 유지하며 초고속 외부 플래시 액세스를 수행하는 펌웨어 설계 방식을 제공합니다.</p>
-<p>2. 하드웨어 동작 구조 (SPI와 PDMA 결합 아키텍처)</p>
+<h2>2. 하드웨어 동작 구조 (SPI와 PDMA 결합 아키텍처)</h2>
 <p>PDMA를 연동하면 데이터 전송의 제어 주도권이 CPU에서 전용 하드웨어인 DMA 컨트롤러로 넘어갑니다.</p>
-<p>[데이터 전송 구조]</p>
+<h3>[데이터 전송 구조]</h3>
 <p>SRAM 메모리 버퍼 -&gt; PDMA TX Channel (자동 주소 증가) -&gt; SPI0 TX FIFO Register -&gt; 외부 W25Q32 Flash Memory</p>
 <p>외부 W25Q32 Flash Memory -&gt; SPI0 RX FIFO Register -&gt; PDMA RX Channel (자동 주소 증가) -&gt; SRAM 수신 버퍼</p>
-<p>동작 알고리즘</p>
-<p>1. CPU가 전송할 버퍼의 시작 주소와 전송 바이트 크기(예: 1024바이트)를 PDMA 레지스터에 기록합니다.</p>
-<p>2. SPI 전송 트리거 비트를 켭니다.</p>
-<p>3. SPI FIFO 버퍼가 비워질 때마다 PDMA 채널이 자동으로 SRAM에서 데이터를 가져와 전송합니다.</p>
-<p>4. 전송이 완료될 때까지 CPU는 다른 실시간 스레드 연산(센서 필터링 등)을 자유롭게 계속 수행합니다.</p>
-<p>5. 1024바이트 전송이 끝나는 시점에 하드웨어 인터럽트가 딱 한 번 걸려 전송 완료를 소프트웨어에 알립니다.</p>
-<p>3. BSP 기반 SPI + PDMA 제어 펌웨어 구현법</p>
+<h3>동작 알고리즘</h3>
+<ol style="line-height:1.9;"><li>CPU가 전송할 버퍼의 시작 주소와 전송 바이트 크기(예: 1024바이트)를 PDMA 레지스터에 기록합니다.</li><li>SPI 전송 트리거 비트를 켭니다.</li><li>SPI FIFO 버퍼가 비워질 때마다 PDMA 채널이 자동으로 SRAM에서 데이터를 가져와 전송합니다.</li><li>전송이 완료될 때까지 CPU는 다른 실시간 스레드 연산(센서 필터링 등)을 자유롭게 계속 수행합니다.</li><li>1024바이트 전송이 끝나는 시점에 하드웨어 인터럽트가 딱 한 번 걸려 전송 완료를 소프트웨어에 알립니다.</li></ol>
+<h2>3. BSP 기반 SPI + PDMA 제어 펌웨어 구현법</h2>
 <p>누보톤 M251/M252 시리즈에서 SPI0 포트를 설정하고, PDMA 채널 1(TX) 및 채널 2(RX)를 할당하여 W25Q32 플래시 메모리에 고속으로 쓰고 읽는 C 코드 가이드입니다.</p>
-<p>#include &lt;stdio.h&gt;</p>
-<p>#include &quot;NuMicro.h&quot;</p>
-<p>// 데이터 송수신용 버퍼 지정</p>
-<p>uint8_t g_au8TxBuffer[256];</p>
-<p>uint8_t g_au8RxBuffer[256];</p>
-<p>volatile uint32_t g_u32IsTestOver = 0;</p>
-<p>// PDMA 인터럽트 서비스 루틴</p>
-<p>void PDMA_IRQHandler(void)</p>
-<p>{</p>
-<p>uint32_t status = PDMA_GET_INT_STATUS(PDMA);</p>
-<p>// 채널 1 (SPI TX) 인터럽트 처리</p>
-<p>if (status &amp; PDMA_INTSTS_TDIF1_Msk)</p>
-<p>{</p>
-<p>PDMA_CLR_CH_INT_FLAG(PDMA, 1, PDMA_CH_INT_FLAG_TD);</p>
-<p>}</p>
-<p>// 채널 2 (SPI RX) 인터럽트 처리</p>
-<p>if (status &amp; PDMA_INTSTS_TDIF2_Msk)</p>
-<p>{</p>
-<p>PDMA_CLR_CH_INT_FLAG(PDMA, 2, PDMA_CH_INT_FLAG_TD);</p>
-<p>g_u32IsTestOver = 1; // 수신이 끝나면 전체 테스트 완료로 판단</p>
-<p>}</p>
-<p>}</p>
-<p>void SYS_Init(void)</p>
-<p>{</p>
-<p>SYS_UnlockReg();</p>
-<p>// HIRC 내부 48MHz 오실레이터 기동 및 메인 클럭 엔진 지정</p>
-<p>CLK_EnableXtalRC(CLK_PWRCTL_HIRCEN_Msk);</p>
-<p>CLK_WaitClockReady(CLK_STATUS_HIRCSTB_Msk);</p>
-<p>CLK_SetHCLK(CLK_CLKSEL0_HCLKSEL_HIRC, CLK_CLKDIV0_HCLK(1));</p>
-<p>// SPI0 및 PDMA 모듈 클럭 공급</p>
-<p>CLK_EnableModuleClock(SPI0_MODULE);</p>
-<p>CLK_EnableModuleClock(PDMA_MODULE);</p>
-<p>// SPI0 핀 기능 설정: PA0(MOSI), PA1(MISO), PA2(CLK), PA3(SS)</p>
-<p>SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA0MFP_Msk) | SYS_GPA_MFPL_PA0MFP_SPI0_MOSI0;</p>
-<p>SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA1MFP_Msk) | SYS_GPA_MFPL_PA1MFP_SPI0_MISO0;</p>
-<p>SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA2MFP_Msk) | SYS_GPA_MFPL_PA2MFP_SPI0_CLK;</p>
-<p>SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA3MFP_Msk) | SYS_GPA_MFPL_PA3MFP_SPI0_SS;</p>
-<p>SYS_LockReg();</p>
-<p>}</p>
-<p>void SPI_PDMA_Init(void)</p>
-<p>{</p>
-<p>// 1. SPI0를 마스터 모드(20MHz 속도)로 초기화</p>
-<p>SPI_Open(SPI0, SPI_MASTER, SPI_MODE_0, 8, 20000000);</p>
-<p>SPI_DisableAutoSS(SPI0); // CS 핀 수동 제어</p>
-<p>// 2. PDMA 모듈 초기화 가동</p>
-<p>PDMA_Open(PDMA, (1 &lt;&lt; 1) | (1 &lt;&lt; 2)); // 채널 1, 채널 2 개방</p>
-<p>// 3. PDMA 채널 1 (메모리 -&gt; SPI0 TX) 설정</p>
-<p>PDMA_SetTransferMode(PDMA, 1, PDMA_SPI0_TX, FALSE, 0);</p>
-<p>PDMA_SetTransferAddr(PDMA, 1, (uint32_t)g_au8TxBuffer, PDMA_SAR_INC, (uint32_t)&amp;SPI0-&gt;TX, PDMA_DAR_FIX);</p>
-<p>PDMA_SetTransferCnt(PDMA, 1, PDMA_WIDTH_8, 256);</p>
-<p>// 4. PDMA 채널 2 (SPI0 RX -&gt; 메모리) 설정</p>
-<p>PDMA_SetTransferMode(PDMA, 2, PDMA_SPI0_RX, FALSE, 0);</p>
-<p>PDMA_SetTransferAddr(PDMA, 2, (uint32_t)&amp;SPI0-&gt;RX, PDMA_SAR_FIX, (uint32_t)g_au8RxBuffer, PDMA_DAR_INC);</p>
-<p>PDMA_SetTransferCnt(PDMA, 2, PDMA_WIDTH_8, 256);</p>
-<p>// 5. 전송 완료 인터럽트 활성화 및 NVIC 등록</p>
-<p>PDMA_EnableInt(PDMA, 2, PDMA_INT_TRANS_DONE);</p>
-<p>NVIC_EnableIRQ(PDMA_IRQn);</p>
-<p>}</p>
-<p>void Start_SPI_PDMA_Transfer(void)</p>
-<p>{</p>
-<p>g_u32IsTestOver = 0;</p>
-<p>// 1. 외부 플래시 CS 핀 활성화 (Low)</p>
-<p>SPI_SET_SS_LOW(SPI0);</p>
-<p>// 2. SPI 하드웨어의 PDMA 전송 트리거 활성화</p>
-<p>SPI_TRIGGER_TX_PDMA(SPI0);</p>
-<p>SPI_TRIGGER_RX_PDMA(SPI0);</p>
-<p>// 3. 수신이 완료되어 인터럽트 플래그가 1이 될 때까지 CPU는 대기하거나 다른 연산 수행</p>
-<p>while(g_u32IsTestOver == 0);</p>
-<p>// 4. 전송 완료 후 SPI의 PDMA 트리거 수동 해제</p>
-<p>SPI_DISABLE_TX_PDMA(SPI0);</p>
-<p>SPI_DISABLE_RX_PDMA(SPI0);</p>
-<p>// 5. 외부 플래시 CS 핀 비활성화 (High)</p>
-<p>SPI_SET_SS_HIGH(SPI0);</p>
-<p>}</p>
-<p>4. 임베디드 FAE 리스크 분석 및 예방 대책</p>
-<p>칩 선택(CS, Chip Select) 신호 제어 타이밍 주의</p>
+<pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>#include &lt;stdio.h&gt;
+#include "NuMicro.h"
+// 데이터 송수신용 버퍼 지정
+uint8_t g_au8TxBuffer[256];
+uint8_t g_au8RxBuffer[256];
+volatile uint32_t g_u32IsTestOver = 0;
+// PDMA 인터럽트 서비스 루틴
+
+void PDMA_IRQHandler(void)
+{
+    uint32_t status = PDMA_GET_INT_STATUS(PDMA);
+    // 채널 1 (SPI TX) 인터럽트 처리
+    if (status &amp; PDMA_INTSTS_TDIF1_Msk)
+    {
+        PDMA_CLR_CH_INT_FLAG(PDMA, 1, PDMA_CH_INT_FLAG_TD);
+    }
+    // 채널 2 (SPI RX) 인터럽트 처리
+    if (status &amp; PDMA_INTSTS_TDIF2_Msk)
+    {
+        PDMA_CLR_CH_INT_FLAG(PDMA, 2, PDMA_CH_INT_FLAG_TD);
+        g_u32IsTestOver = 1; // 수신이 끝나면 전체 테스트 완료로 판단
+    }
+}
+
+void SYS_Init(void)
+{
+    SYS_UnlockReg();
+    // HIRC 내부 48MHz 오실레이터 기동 및 메인 클럭 엔진 지정
+    CLK_EnableXtalRC(CLK_PWRCTL_HIRCEN_Msk);
+    CLK_WaitClockReady(CLK_STATUS_HIRCSTB_Msk);
+    CLK_SetHCLK(CLK_CLKSEL0_HCLKSEL_HIRC, CLK_CLKDIV0_HCLK(1));
+    // SPI0 및 PDMA 모듈 클럭 공급
+    CLK_EnableModuleClock(SPI0_MODULE);
+    CLK_EnableModuleClock(PDMA_MODULE);
+    // SPI0 핀 기능 설정: PA0(MOSI), PA1(MISO), PA2(CLK), PA3(SS)
+    SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA0MFP_Msk) | SYS_GPA_MFPL_PA0MFP_SPI0_MOSI0;
+    SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA1MFP_Msk) | SYS_GPA_MFPL_PA1MFP_SPI0_MISO0;
+    SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA2MFP_Msk) | SYS_GPA_MFPL_PA2MFP_SPI0_CLK;
+    SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA3MFP_Msk) | SYS_GPA_MFPL_PA3MFP_SPI0_SS;
+    SYS_LockReg();
+}
+
+void SPI_PDMA_Init(void)
+{
+    // 1. SPI0를 마스터 모드(20MHz 속도)로 초기화
+    SPI_Open(SPI0, SPI_MASTER, SPI_MODE_0, 8, 20000000);
+    SPI_DisableAutoSS(SPI0); // CS 핀 수동 제어
+    // 2. PDMA 모듈 초기화 가동
+    PDMA_Open(PDMA, (1 &lt;&lt; 1) | (1 &lt;&lt; 2)); // 채널 1, 채널 2 개방
+    // 3. PDMA 채널 1 (메모리 -&gt; SPI0 TX) 설정
+    PDMA_SetTransferMode(PDMA, 1, PDMA_SPI0_TX, FALSE, 0);
+    PDMA_SetTransferAddr(PDMA, 1, (uint32_t)g_au8TxBuffer, PDMA_SAR_INC, (uint32_t)&amp;SPI0-&gt;TX, PDMA_DAR_FIX);
+    PDMA_SetTransferCnt(PDMA, 1, PDMA_WIDTH_8, 256);
+    // 4. PDMA 채널 2 (SPI0 RX -&gt; 메모리) 설정
+    PDMA_SetTransferMode(PDMA, 2, PDMA_SPI0_RX, FALSE, 0);
+    PDMA_SetTransferAddr(PDMA, 2, (uint32_t)&amp;SPI0-&gt;RX, PDMA_SAR_FIX, (uint32_t)g_au8RxBuffer, PDMA_DAR_INC);
+    PDMA_SetTransferCnt(PDMA, 2, PDMA_WIDTH_8, 256);
+    // 5. 전송 완료 인터럽트 활성화 및 NVIC 등록
+    PDMA_EnableInt(PDMA, 2, PDMA_INT_TRANS_DONE);
+    NVIC_EnableIRQ(PDMA_IRQn);
+}
+
+void Start_SPI_PDMA_Transfer(void)
+{
+    g_u32IsTestOver = 0;
+    // 1. 외부 플래시 CS 핀 활성화 (Low)
+    SPI_SET_SS_LOW(SPI0);
+    // 2. SPI 하드웨어의 PDMA 전송 트리거 활성화
+    SPI_TRIGGER_TX_PDMA(SPI0);
+    SPI_TRIGGER_RX_PDMA(SPI0);
+    // 3. 수신이 완료되어 인터럽트 플래그가 1이 될 때까지 CPU는 대기하거나 다른 연산 수행
+    while(g_u32IsTestOver == 0);
+    // 4. 전송 완료 후 SPI의 PDMA 트리거 수동 해제
+    SPI_DISABLE_TX_PDMA(SPI0);
+    SPI_DISABLE_RX_PDMA(SPI0);
+    // 5. 외부 플래시 CS 핀 비활성화 (High)
+    SPI_SET_SS_HIGH(SPI0);
+}</code></pre>
+<h2>4. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
+<h3>칩 선택(CS, Chip Select) 신호 제어 타이밍 주의</h3>
 <p>PDMA는 데이터 수신과 송신이 완료되는 즉시 동작을 멈추지만, 외부 SPI 플래시 W25Q32에 데이터 쓰기가 완료되었음을 지칭하는 내부 Write Cycle(보통 수 ms 소요)은 계속 진행 중일 수 있습니다. 만약 PDMA 인터럽트 완료를 감지하자마자 CS 핀을 High로 올린 뒤 바로 이어서 새로운 통신을 시작하면 장치가 먹통이 되는 이상 현상이 나옵니다. 반드시 통신 개시 전에 외부 플래시의 상태 레지스터(Status Register)를 읽어 BUSY 비트가 완전히 해제(0)되었는지 확인하는 폴링 검사 코드를 CS 핀 복귀 직후에 가미해야 오작동을 완벽히 막을 수 있습니다.</p>
-<p>SPI FIFO 버퍼 잔여 데이터 처리</p>
+<h3>SPI FIFO 버퍼 잔여 데이터 처리</h3>
 <p>PDMA 제어 시 간혹 송신 채널 카운트 계산 미스로 SPI 내부 하드웨어 FIFO 버퍼에 전송되지 않은 잔여 데이터가 고여 있을 수 있습니다. 이 상태로 다음 통신을 시도하면 이전 통신의 찌꺼기가 먼저 송신되어 데이터가 밀리는 오차가 납니다. 매 PDMA 전송 시작 및 종료 시점마다 SPI0-&gt;FIFOCTL 레지스터의 TX/RX FIFO 클리어(RST) 비트를 활성화하여 버퍼를 깨끗이 청소하는 루틴을 추가하십시오.</p>
-<p>5. 참고 자료 및 레퍼런스 (References)</p>
+<h2>5. 참고 자료 및 레퍼런스 (References)</h2>
 <p>본 아티클은 Winbond W25Q32JV 직렬 플래시 데이터시트의 쓰기 시퀀스 명세서 사양과 누보톤 M251/M252 시리즈 기술 레퍼런스 매뉴얼(TRM)의 PDMA 및 SPI 컨트롤러 부문을 기반으로 작성되었습니다. 또한 M251 표준 BSP 내의 SPI_PDMA_Loopback 예제 드라이버 구현 가이드를 FAE의 실무 디버깅 경험을 대조하여 검증하고 작성한 기술 문서입니다.</p>
-<p>---</p>
+<hr>
 <p>💡👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
 <p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>
 <hr>

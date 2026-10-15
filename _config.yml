@@ -11,3 +11,6 @@ plugins:
   - jekyll-feed
 exclude:
   - README.md
+# [MOD] Bing Webmaster Tools 소유 확인 (지우면 확인이 풀림)
+webmaster_verifications:
+  bing: EDC9DE5086DE4E5F5AD381D4530171DE

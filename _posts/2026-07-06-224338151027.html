@@ -16,28 +16,30 @@ naver_logno: 224338151027
 <h3>APROM (Application ROM)</h3>
 <ul style="line-height:1.9;"><li>용도: 사용자의 메인 애플리케이션 제어 소프트웨어 코드가 보관되는 메인 스토리지 공간.</li><li>N76E003 기준 크기: 최대 18KB 대역 (주소 범위: 0x0000 ~ 0x47FF)</li></ul>
 <h3>LDROM (Loader ROM)</h3>
-<ul style="line-height:1.9;"><li>용도: UART, I2C, USB 등 통신 신호를 수신해 APROM 플래시 영역을 지우고 덮어쓰는 ISP 부트로더 소프트웨어가 보관되는 시스템 전용 공간.</li><li>N76E003 기준 크기: 최대 4KB 대역 (주소 범위: 0x0000 ~ 0x0FFF, 독립된 별도 주소 맵으로 할당)</li></ul>
+<ul style="line-height:1.9;"><li>용도: UART, I2C 등 통신 신호를 수신해 APROM 플래시 영역을 지우고 덮어쓰는 ISP 부트로더 소프트웨어가 보관되는 시스템 전용 공간.</li><li>N76E003 기준 크기: 최대 4KB 대역 (주소 범위: 0x0000 ~ 0x0FFF, 독립된 별도 주소 맵으로 할당)</li></ul>
 <h2>3. CONFIG 레지스터 설정 및 부트 타겟 제어 (CBS 비트)</h2>
 <p>전원 인가 직후(Power-on Reset) CPU의 프로그램 카운터(PC) 레지스터가 어느 메모리 영역의 0번지 코드를 가리키고 부팅을 시작할지 결정하는 열쇠는 바로 사용자 구성 비트인 CONFIG0 레지스터의 CBS 비트입니다.</p>
 <h3>부팅 시작 위치 설정 제어 규격 (CONFIG0의 CBS 비트)</h3>
 <ul style="line-height:1.9;"><li>CBS = 1 (APROM 부팅): 전원 인가 시 즉시 메인 애플리케이션 코드가 실행됩니다. 일반 양산 제품의 실사용 모드입니다.</li><li>CBS = 0 (LDROM 부팅): 전원 인가 시 즉시 LDROM의 ISP 부트로더 코드가 실행됩니다. 업데이트 및 공장 출하 초기 펌웨어 다운로드 모드입니다.</li></ul>
-<h2>4. FMC(Flash Memory Controller) 기반 ISP 제어 및 소프트웨어 리셋 C 코드</h2>
-<p>메인 앱(APROM) 실행 도중 특정 UART 패킷(예: 업그레이드 시작 플래그)을 수신하면 하드웨어 리셋 없이 소프트웨어 명령으로 LDROM(부트로더)으로 복귀하는 FMC 레지스터 제어 및 소프트웨어 리셋 시퀀스 구현 C 소스코드입니다.</p>
+<h2>4. CHPCON 레지스터 기반 ISP(IAP) 제어 및 소프트웨어 리셋 C 코드</h2>
+<p>메인 앱(APROM) 실행 도중 특정 UART 패킷(예: 업그레이드 시작 플래그)을 수신하면 하드웨어 리셋 없이 소프트웨어 명령으로 LDROM(부트로더)으로 복귀하는 CHPCON 레지스터 제어 및 소프트웨어 리셋 시퀀스 구현 C 소스코드입니다.</p>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>#include "N76E003.h"
 
 void Go_To_LDROM_ISP(void)
 {
-    // 1. 하드웨어 레지스터 보호 잠금 해제
+    // 1. Timed Access(TA) 시퀀스: 보호된 레지스터는 쓰기 직전마다 필요
     TA = 0xAA;
     TA = 0x55;
-    // 2. FMC 컨트롤 레지스터(CHPCON) 설정
-    // LXTAL/HIRC 안정성 확보 및 ISP 제어 활성화 비트 세팅
-    // CHPCON 레지스터의 ISPF 비트(ISP Enable)와 LDUEN 비트(LDROM Update Enable)를 켭니다.
-    CHPCON |= 0x03;
-    // 3. 부트 선택 레지스터(BS) 비트를 1로 설정하여 다음 리셋 시 LDROM에서 부팅하도록 지정
-    CHPCON |= 0x10;
+    // 2. 칩 컨트롤 레지스터(CHPCON) 설정
+    // IAP(ISP) 기능 활성화 비트 세팅
+    // CHPCON 레지스터의 IAPEN 비트(bit0, IAP Enable)를 켭니다.
+    CHPCON |= 0x01;
+    // 3. CHPCON 의 BS 비트(bit1)를 1로 설정하여 다음 리셋 시 LDROM에서 부팅하도록 지정 (쓰기마다 TA 시퀀스 필요)
+    TA = 0xAA;
+    TA = 0x55;
+    CHPCON |= 0x02;
     // 4. 소프트웨어 하드웨어 리셋 트리거 발생
-    // CHPCON 레지스터의 SWRST 비트를 1로 설정하여 강제 시스템 콜드 리셋 발생
+    // CHPCON 레지스터의 SWRST 비트를 1로 설정하여 소프트웨어 리셋 발생 (BS 는 유지되므로 LDROM에서 부팅)
     TA = 0xAA;
     TA = 0x55;
     CHPCON |= 0x80;
@@ -45,7 +47,6 @@ void Go_To_LDROM_ISP(void)
 
 void main(void)
 {
-    SYS_UnlockReg();
     // UART 초기화 및 수신 대기 루프 구동
     while(1)
     {
@@ -57,12 +58,12 @@ void main(void)
     }
 }</code></pre>
 <h2>5. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
-<h3>FMC 오제어로 인한 CONFIG 레지스터 영구 손상 리스크</h3>
-<p>FMC 컨트롤 명령을 수행할 때 오실레이터 주파수가 흔들리거나 공급 전압(VDD)이 순간적으로 불안정해지면, CONFIG 바이트의 락(Lock) 정보가 비정상적으로 왜곡 기록되어 디버깅 및 쓰기가 영구 차단되는 칩 벽돌(Brick) 현상이 날 수 있습니다. 플래시 쓰기 작업 수행 시에는 반드시 VDD 전원을 3.0V~5.5V 범위로 견고히 유지하고, 시스템 클럭 소스 안정화가 끝났음을 알리는 보증 비트(HIRCSTB 등)를 감지한 직후 FMC 제어 명령을 동작시키십시오.</p>
-<h3>APROM 인터럽트 벡터 리맵핑 누락 리스크</h3>
-<p>LDROM에서 APROM으로 펌웨어 카피 및 플래시 업로드가 완료된 후, LDROM 코드가 단순 함수 포인터 분기 방식으로 APROM의 0x0000 번지로 강제 점프(Jump)하여 제어권을 이전하면, 인터럽트 벡터 테이블의 오프셋 물리 맵핑 주소가 여전히 LDROM 주소 맵에 고정되어 오작동을 일으킵니다. 반드시 점프 수행 직전에 스택 포인터를 초기화하고, 소프트웨어 리셋 명령(SWRST)을 통해 칩 전체가 하드웨어적으로 클린 리셋 상태에서 새로 부팅(이때 CBS 비트 변경을 통해 APROM 타겟 부팅)을 시작하도록 부팅 시퀀스를 설계하십시오.</p>
+<h3>IAP 오제어로 인한 CONFIG 바이트 오기록 리스크</h3>
+<p>IAP 로 CONFIG 바이트를 잘못 기록하면 LOCK 비트가 0(칩 잠금)으로 바뀌어, 병렬 라이터나 ICP 로 읽은 플래시 내용이 모두 FFH 로 보이고 CONFIG 바이트를 개별로 지우거나 쓸 수 없게 될 수 있습니다. 칩이 손상되는 것은 아니며, Whole Chip Erase 를 실행하면 잠금이 풀립니다. 다만 이때 플래시 메모리와 CONFIG 의 내용이 모두 지워지므로 펌웨어를 다시 써 넣어야 합니다. 플래시 쓰기 작업 수행 시에는 반드시 VDD 전원을 2.4V~5.5V 범위로 견고히 유지하고, 시스템 클럭 소스 안정화가 끝났음을 알리는 보증 비트(CKSWT 의 HIRCST 등)를 확인한 직후 IAP 제어 명령을 동작시키십시오.</p>
+<h3>LDROM에서 APROM으로 직접 점프하는 방식의 인터럽트 벡터 리스크</h3>
+<p>LDROM에서 APROM으로 펌웨어 카피 및 플래시 업로드가 완료된 후, LDROM 코드가 단순 함수 포인터 분기 방식으로 APROM의 0x0000 번지로 강제 점프(Jump)하여 제어권을 이전하면, 인터럽트 벡터 테이블의 오프셋 물리 맵핑 주소가 여전히 LDROM 주소 맵에 고정되어 오작동을 일으킵니다. 반드시 소프트웨어 리셋 명령(SWRST)을 통해 칩 전체가 하드웨어적으로 클린 리셋 상태에서 새로 부팅(이때 CHPCON 의 BS 비트를 0으로 써서 APROM 타겟 부팅)을 시작하도록 부팅 시퀀스를 설계하십시오.</p>
 <h2>6. 참고 자료 및 레퍼런스 (References)</h2>
-<p>본 기술 가이드는 누보톤 N76E003 및 MS51 공식 제품 데이터시트 명세서의 Flash Memory Control(FMC) 부문과 CONFIG0 레지스터 비트 사양을 바탕으로 작성되었습니다. 또한 양산 지그의 플래시 업그레이드 전송 오류 분석 보고서 및 FMC 소프트웨어 리셋 트러블슈팅 이력을 교차 참조하여 FAE 관점에서 기록한 실무 기술 자료입니다.</p>
+<p>본 기술 가이드는 누보톤 N76E003 및 MS51 공식 제품 데이터시트 명세서의 IAP/ISP 부문과 CONFIG0 레지스터 비트 사양을 바탕으로 작성되었습니다. 또한 양산 지그의 플래시 업그레이드 전송 오류 분석 보고서 및 ISP 소프트웨어 리셋 트러블슈팅 이력을 교차 참조하여 FAE 관점에서 기록한 실무 기술 자료입니다.</p>
 <hr>
 <p>💡</p>
 <p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>

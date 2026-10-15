@@ -31,16 +31,15 @@ volatile uint32_t g_u32IsTestOver = 0;
 
 void PDMA_IRQHandler(void)
 {
-    uint32_t status = PDMA_GET_INT_STATUS(PDMA);
     // 채널 1 (SPI TX) 인터럽트 처리
-    if (status &amp; PDMA_INTSTS_TDIF1_Msk)
+    if (PDMA_GET_TD_STS(PDMA) &amp; PDMA_TDSTS_TDIF1_Msk)
     {
-        PDMA_CLR_CH_INT_FLAG(PDMA, 1, PDMA_CH_INT_FLAG_TD);
+        PDMA_CLR_TD_FLAG(PDMA, PDMA_TDSTS_TDIF1_Msk);
     }
     // 채널 2 (SPI RX) 인터럽트 처리
-    if (status &amp; PDMA_INTSTS_TDIF2_Msk)
+    if (PDMA_GET_TD_STS(PDMA) &amp; PDMA_TDSTS_TDIF2_Msk)
     {
-        PDMA_CLR_CH_INT_FLAG(PDMA, 2, PDMA_CH_INT_FLAG_TD);
+        PDMA_CLR_TD_FLAG(PDMA, PDMA_TDSTS_TDIF2_Msk);
         g_u32IsTestOver = 1; // 수신이 끝나면 전체 테스트 완료로 판단
     }
 }
@@ -56,8 +55,8 @@ void SYS_Init(void)
     CLK_EnableModuleClock(SPI0_MODULE);
     CLK_EnableModuleClock(PDMA_MODULE);
     // SPI0 핀 기능 설정: PA0(MOSI), PA1(MISO), PA2(CLK), PA3(SS)
-    SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA0MFP_Msk) | SYS_GPA_MFPL_PA0MFP_SPI0_MOSI0;
-    SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA1MFP_Msk) | SYS_GPA_MFPL_PA1MFP_SPI0_MISO0;
+    SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA0MFP_Msk) | SYS_GPA_MFPL_PA0MFP_SPI0_MOSI;
+    SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA1MFP_Msk) | SYS_GPA_MFPL_PA1MFP_SPI0_MISO;
     SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA2MFP_Msk) | SYS_GPA_MFPL_PA2MFP_SPI0_CLK;
     SYS-&gt;GPA_MFPL = (SYS-&gt;GPA_MFPL &amp; ~SYS_GPA_MFPL_PA3MFP_Msk) | SYS_GPA_MFPL_PA3MFP_SPI0_SS;
     SYS_LockReg();
@@ -74,10 +73,18 @@ void SPI_PDMA_Init(void)
     PDMA_SetTransferMode(PDMA, 1, PDMA_SPI0_TX, FALSE, 0);
     PDMA_SetTransferAddr(PDMA, 1, (uint32_t)g_au8TxBuffer, PDMA_SAR_INC, (uint32_t)&amp;SPI0-&gt;TX, PDMA_DAR_FIX);
     PDMA_SetTransferCnt(PDMA, 1, PDMA_WIDTH_8, 256);
+    // SPI 는 PDMA 단일 요청(single request) 방식만 지원
+    PDMA_SetBurstType(PDMA, 1, PDMA_REQ_SINGLE, 0);
+    // 테이블 인터럽트 비활성화
+    PDMA-&gt;DSCT[1].CTL |= PDMA_DSCT_CTL_TBINTDIS_Msk;
     // 4. PDMA 채널 2 (SPI0 RX -&gt; 메모리) 설정
     PDMA_SetTransferMode(PDMA, 2, PDMA_SPI0_RX, FALSE, 0);
     PDMA_SetTransferAddr(PDMA, 2, (uint32_t)&amp;SPI0-&gt;RX, PDMA_SAR_FIX, (uint32_t)g_au8RxBuffer, PDMA_DAR_INC);
     PDMA_SetTransferCnt(PDMA, 2, PDMA_WIDTH_8, 256);
+    // SPI 는 PDMA 단일 요청(single request) 방식만 지원
+    PDMA_SetBurstType(PDMA, 2, PDMA_REQ_SINGLE, 0);
+    // 테이블 인터럽트 비활성화
+    PDMA-&gt;DSCT[2].CTL |= PDMA_DSCT_CTL_TBINTDIS_Msk;
     // 5. 전송 완료 인터럽트 활성화 및 NVIC 등록
     PDMA_EnableInt(PDMA, 2, PDMA_INT_TRANS_DONE);
     NVIC_EnableIRQ(PDMA_IRQn);
@@ -101,11 +108,11 @@ void Start_SPI_PDMA_Transfer(void)
 }</code></pre>
 <h2>4. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
 <h3>칩 선택(CS, Chip Select) 신호 제어 타이밍 주의</h3>
-<p>PDMA는 데이터 수신과 송신이 완료되는 즉시 동작을 멈추지만, 외부 SPI 플래시 W25Q32에 데이터 쓰기가 완료되었음을 지칭하는 내부 Write Cycle(보통 수 ms 소요)은 계속 진행 중일 수 있습니다. 만약 PDMA 인터럽트 완료를 감지하자마자 CS 핀을 High로 올린 뒤 바로 이어서 새로운 통신을 시작하면 장치가 먹통이 되는 이상 현상이 나옵니다. 반드시 통신 개시 전에 외부 플래시의 상태 레지스터(Status Register)를 읽어 BUSY 비트가 완전히 해제(0)되었는지 확인하는 폴링 검사 코드를 CS 핀 복귀 직후에 가미해야 오작동을 완벽히 막을 수 있습니다.</p>
+<p>PDMA는 데이터 수신과 송신이 완료되는 즉시 동작을 멈추지만, 외부 SPI 플래시 W25Q32에 데이터 쓰기가 완료되었음을 지칭하는 내부 쓰기·지우기 동작(W25Q32JV 기준 페이지 프로그램 최대 3ms, 4KB 섹터 지우기 최대 400ms 소요)은 계속 진행 중일 수 있습니다. 만약 PDMA 인터럽트 완료를 감지하자마자 CS 핀을 High로 올린 뒤 바로 이어서 새로운 통신을 시작하면 장치가 먹통이 되는 이상 현상이 나옵니다. 반드시 통신 개시 전에 외부 플래시의 상태 레지스터(Status Register)를 읽어 BUSY 비트가 완전히 해제(0)되었는지 확인하는 폴링 검사 코드를 CS 핀 복귀 직후에 가미해야 오작동을 완벽히 막을 수 있습니다.</p>
 <h3>SPI FIFO 버퍼 잔여 데이터 처리</h3>
-<p>PDMA 제어 시 간혹 송신 채널 카운트 계산 미스로 SPI 내부 하드웨어 FIFO 버퍼에 전송되지 않은 잔여 데이터가 고여 있을 수 있습니다. 이 상태로 다음 통신을 시도하면 이전 통신의 찌꺼기가 먼저 송신되어 데이터가 밀리는 오차가 납니다. 매 PDMA 전송 시작 및 종료 시점마다 SPI0-&gt;FIFOCTL 레지스터의 TX/RX FIFO 클리어(RST) 비트를 활성화하여 버퍼를 깨끗이 청소하는 루틴을 추가하십시오.</p>
+<p>PDMA 제어 시 간혹 송신 채널 카운트 계산 미스로 SPI 내부 하드웨어 FIFO 버퍼에 전송되지 않은 잔여 데이터가 고여 있을 수 있습니다. 이 상태로 다음 통신을 시도하면 이전 통신의 찌꺼기가 먼저 송신되어 데이터가 밀리는 오차가 납니다. 매 PDMA 전송 시작 및 종료 시점마다 SPI0-&gt;FIFOCTL 레지스터의 TX/RX FIFO 버퍼 클리어 비트(TXFBCLR, RXFBCLR)를 활성화(SPI_ClearTxFIFO(), SPI_ClearRxFIFO() 호출로도 동일)하여 버퍼를 깨끗이 청소하는 루틴을 추가하십시오.</p>
 <h2>5. 참고 자료 및 레퍼런스 (References)</h2>
-<p>본 아티클은 Winbond W25Q32JV 직렬 플래시 데이터시트의 쓰기 시퀀스 명세서 사양과 누보톤 M251/M252 시리즈 기술 레퍼런스 매뉴얼(TRM)의 PDMA 및 SPI 컨트롤러 부문을 기반으로 작성되었습니다. 또한 M251 표준 BSP 내의 SPI_PDMA_Loopback 예제 드라이버 구현 가이드를 FAE의 실무 디버깅 경험을 대조하여 검증하고 작성한 기술 문서입니다.</p>
+<p>본 아티클은 Winbond W25Q32JV 직렬 플래시 데이터시트의 쓰기 시퀀스 명세서 사양과 누보톤 M251/M252 시리즈 기술 레퍼런스 매뉴얼(TRM)의 PDMA 및 SPI 컨트롤러 부문을 기반으로 작성되었습니다. 또한 M251 표준 BSP 내의 SPI_PDMA_LoopTest 예제 드라이버 구현 가이드를 FAE의 실무 디버깅 경험을 대조하여 검증하고 작성한 기술 문서입니다.</p>
 <hr>
 <p>💡👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>
 <p><a href="https://cafe.naver.com/nuvotonlab">Nuvoton Users Group : 네이버 카페</a></p>

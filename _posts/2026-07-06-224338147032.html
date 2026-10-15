@@ -14,8 +14,8 @@ naver_logno: 224338147032
 <p>이 가이드북은 Keil MDK ARM 빌드 환경과 ULINKpro 디버거를 연결하여, M487 보드에서 ETM을 성공적으로 활성화하고 CPU 실행 이력을 100% 실시간 추적하는 설정 시퀀스를 공유합니다.</p>
 <h2>2. ETM 동작의 하드웨어 전제 조건 (트레이스 핀 결선)</h2>
 <p>ETM을 동작시키려면 MCU가 실행하는 초고속 클럭 신호(보통 수십 MHz)에 맞춰 실시간으로 추적 데이터를 디버거 장치로 인계해야 합니다. 이를 위해 Trace CLK 신호선 1개와 Trace Data 신호선 4개(Data 0 ~ Data 3)가 물리적으로 ETM 커넥터와 직결되어 다중 맵핑(MFP) 활성화가 되어 있어야 합니다.</p>
-<h3>M487 MCU의 전용 트레이스 핀 구성 정보 (PE 대역 포트 지정)</h3>
-<ul style="line-height:1.9;"><li>TRACE_CLK: PE.2 핀 (트레이스 신호 동기 클럭)</li><li>TRACE_DATA0: PE.3 핀 (트레이스 데이터 0비트)</li><li>TRACE_DATA1: PE.4 핀 (트레이스 데이터 1비트)</li><li>TRACE_DATA2: PE.5 핀 (트레이스 데이터 2비트)</li><li>TRACE_DATA3: PE.6 핀 (트레이스 데이터 3비트)</li></ul>
+<p>M487 MCU의 전용 트레이스 핀 구성 정보 (PE 대역 포트 지정, 모두 MFP14)</p>
+<ul style="line-height:1.9;"><li>TRACE_CLK: PE.12 핀 (트레이스 신호 동기 클럭)</li><li>TRACE_DATA0: PE.11 핀 (트레이스 데이터 0비트)</li><li>TRACE_DATA1: PE.10 핀 (트레이스 데이터 1비트)</li><li>TRACE_DATA2: PE.9 핀 (트레이스 데이터 2비트)</li><li>TRACE_DATA3: PE.8 핀 (트레이스 데이터 3비트)</li></ul>
 <h2>3. 펌웨어 내부 다중 기능 핀(MFP) 초기화 설정</h2>
 <p>M487 시스템 기동 시, 해당 핀들을 일반 GPIO 모드에서 ETM 전용 초고속 트레이스 핀 속성으로 강제 변경해 주어야 디버거 커넥터로 주파수 파형이 흐릅니다. SYS_Init() 단계에 포함되어야 할 C 소스코드 내용입니다.</p>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>#include "NuMicro.h"
@@ -23,18 +23,18 @@ naver_logno: 224338147032
 void ETM_Pin_Configuration(void)
 {
     SYS_UnlockReg();
-    // 1. PE.2, PE.3, PE.4, PE.5, PE.6 핀의 다중 기능 레지스터(MFP)를 트레이스 신호로 지정
-    SYS-&gt;GPE_MFPL = (SYS-&gt;GPE_MFPL &amp; ~SYS_GPE_MFPL_PE2MFP_Msk) | SYS_GPE_MFPL_PE2MFP_TRACE_CLK;
-    SYS-&gt;GPE_MFPL = (SYS-&gt;GPE_MFPL &amp; ~SYS_GPE_MFPL_PE3MFP_Msk) | SYS_GPE_MFPL_PE3MFP_TRACE_DATA0;
-    SYS-&gt;GPE_MFPL = (SYS-&gt;GPE_MFPL &amp; ~SYS_GPE_MFPL_PE4MFP_Msk) | SYS_GPE_MFPL_PE4MFP_TRACE_DATA1;
-    SYS-&gt;GPE_MFPL = (SYS-&gt;GPE_MFPL &amp; ~SYS_GPE_MFPL_PE5MFP_Msk) | SYS_GPE_MFPL_PE5MFP_TRACE_DATA2;
-    SYS-&gt;GPE_MFPL = (SYS-&gt;GPE_MFPL &amp; ~SYS_GPE_MFPL_PE6MFP_Msk) | SYS_GPE_MFPL_PE6MFP_TRACE_DATA3;
-    // 2. 고속 클럭 파형의 왜곡을 방지하기 위해 해당 핀들의 드라이브 강도(Slew Rate)를 High로 변경
-    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN2_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN2_Pos);
-    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN3_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN3_Pos);
-    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN4_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN4_Pos);
-    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN5_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN5_Pos);
-    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN6_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN6_Pos);
+    // 1. PE.12, PE.11, PE.10, PE.9, PE.8 핀의 다중 기능 레지스터(MFP)를 트레이스 신호로 지정
+    SYS-&gt;GPE_MFPH = (SYS-&gt;GPE_MFPH &amp; ~SYS_GPE_MFPH_PE12MFP_Msk) | SYS_GPE_MFPH_PE12MFP_TRACE_CLK;
+    SYS-&gt;GPE_MFPH = (SYS-&gt;GPE_MFPH &amp; ~SYS_GPE_MFPH_PE11MFP_Msk) | SYS_GPE_MFPH_PE11MFP_TRACE_DATA0;
+    SYS-&gt;GPE_MFPH = (SYS-&gt;GPE_MFPH &amp; ~SYS_GPE_MFPH_PE10MFP_Msk) | SYS_GPE_MFPH_PE10MFP_TRACE_DATA1;
+    SYS-&gt;GPE_MFPH = (SYS-&gt;GPE_MFPH &amp; ~SYS_GPE_MFPH_PE9MFP_Msk) | SYS_GPE_MFPH_PE9MFP_TRACE_DATA2;
+    SYS-&gt;GPE_MFPH = (SYS-&gt;GPE_MFPH &amp; ~SYS_GPE_MFPH_PE8MFP_Msk) | SYS_GPE_MFPH_PE8MFP_TRACE_DATA3;
+    // 2. 고속 클럭 파형의 왜곡을 방지하기 위해 해당 핀들의 슬루율(Slew Rate)을 High로 변경
+    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN12_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN12_Pos);
+    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN11_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN11_Pos);
+    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN10_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN10_Pos);
+    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN9_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN9_Pos);
+    PE-&gt;SLEWCTL = (PE-&gt;SLEWCTL &amp; ~GPIO_SLEWCTL_HSREN8_Msk) | (GPIO_SLEWCTL_HIGH &lt;&lt; GPIO_SLEWCTL_HSREN8_Pos);
     SYS_LockReg();
 }</code></pre>
 <h2>4. Keil MDK Options 설정 및 ULINKpro 드라이버 디렉토리 지정</h2>

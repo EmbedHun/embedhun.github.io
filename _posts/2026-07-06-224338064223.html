@@ -7,21 +7,22 @@ naver_logno: 224338064223
 ---
 {% raw %}
 <h2>1. 개요 및 배경</h2>
-<p>산업용 게이트웨이, 스마트 팩토리 수집 장치, 스마트 빌딩 컨트롤러 등 IoT 장치들은 클라우드나 중앙 관제 서버와의 실시간 데이터 공유가 필수적입니다.</p>
-<p>NUC980 시리즈는 고성능 ARM926EJ-S 코어(최대 300MHz 발진)와 대용량 내장 DRAM(64MB 또는 128MB)을 탑재하여 임베디드 리눅스(Embedded Linux)를 구동하면서도 단가가 저렴하여 가성비 높은 IoT 에지 게이트웨이로 각광받고 있습니다.</p>
-<p>이 가이드북은 누보톤의 공식 개발용 Buildroot 환경을 사용해 커널을 빌드하고, Paho MQTT C 라이브러리를 연동하여 보드의 입출력(GPIO, I2C 센서, LED) 상태를 실시간 제어하는 IoT 클라이언트 펌웨어 스택 구축의 전체 프로시저를 설명합니다.</p>
+
+<p>NUC980 시리즈는 ARM926EJ-S 코어(최대 300MHz)를 탑재하고, LQFP 패키지 품번은 DDR2 SDRAM 128MB 또는 64MB를 내장합니다(품번에 따라 다름). 누보톤은 NUC980용 임베디드 리눅스(Embedded Linux) BSP를 제공합니다.</p>
+<p>이 가이드북은 누보톤의 공식 개발용 Buildroot 환경을 사용해 커널을 빌드하고, Paho MQTT C 라이브러리를 연동하여 보드의 입출력(GPIO, LED) 상태를 실시간 제어하는 IoT 클라이언트 펌웨어 스택 구축의 전체 프로시저를 설명합니다.</p>
 <h2>2. 하드웨어 환경 및 목표 아키텍처</h2>
-<p>본 데모는 다음 누보톤 개발 보드 및 센서 구성을 호환 지원합니다.</p>
-<ul style="line-height:1.9;"><li>대상 보드: NuMaker-IIoT-NUC980 (또는 G1/G2) 및 NuMaker-RTU-NUC980 (Chili)</li><li>센서: I2C 버스로 연결된 MAX31875 온도 센서</li><li>통신 채널: 온보드 이더넷(Ethernet) 포트 및 MQTT 프로토콜 (Broker: test.mosquitto.org)</li></ul>
+<p>본 데모의 대상 구성은 다음과 같습니다.</p>
+<ul style="line-height:1.9;"><li>대상 보드: NuMaker-IIoT-NUC980, NuMaker-IIoT-NUC980G2 및 NuMaker-RTU-NUC980 (Chili)</li><li>통신 채널: 온보드 이더넷(Ethernet) 포트 및 MQTT 프로토콜 (Broker: test.mosquitto.org)</li></ul>
 <h3>[시스템 구조 데이터 흐름]</h3>
-<p>Android IoT MQTT Panel (App) -&gt; MQTT Broker (test.mosquitto.org Port 1883) -&gt; NUC980 Embedded Linux (Ethernet) -&gt; LED3 (GPIO), K1 (Input Switch), MAX31875 (I2C-1 인터페이스 센서)</p>
+<p>Android IoT MQTT Panel (App) -&gt; MQTT Broker (test.mosquitto.org Port 1883) -&gt; NUC980 Embedded Linux (Ethernet) -&gt; LED3 (GPIO), K1 (Input Switch)</p>
 <h2>3. Buildroot 및 Linux 커널 환경 구성 (Step-by-Step)</h2>
-<p>개발 PC(Ubuntu 22.04 LTS 권장)에서 임베디드 Linux OS 이미지 컴파일 도구인 Buildroot를 복제하고 패키지를 추가 설정합니다.</p>
+<p>개발 PC에서 임베디드 Linux OS 이미지 컴파일 도구인 Buildroot를 복제하고 패키지를 추가 설정합니다.</p>
 <h3>1) 소스코드 복제 및 보드 설정 (Target Config)</h3>
 <p>누보톤 공식 Buildroot 레포지토리를 클론하고 보드 레이아웃에 맞춰 초기 설정을 불러옵니다.</p>
-<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>$ git clone https://github.com/OpenNuvoton/buildroot_2024$ cd buildroot_2024</code></pre>
+<pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>$ git clone https://github.com/OpenNuvoton/buildroot_2024
+$ cd buildroot_2024</code></pre>
 <h3>보드 유형에 맞는 defconfig 구성 선택 (하나만 실행)</h3>
-<ul style="line-height:1.9;"><li>NuMaker-IIoT-NUC980 또는 G1 보드</li></ul>
+<ul style="line-height:1.9;"><li>NuMaker-IIoT-NUC980 보드</li></ul>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>$ make nuvoton_nuc980_iot_defconfig</code></pre>
 <ul style="line-height:1.9;"><li>NuMaker-IIoT-NUC980G2 보드</li></ul>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>$ make nuvoton_nuc980_iot_g2_defconfig</code></pre>
@@ -37,12 +38,12 @@ naver_logno: 224338064223
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>$ make linux-menuconfig</code></pre>
 <ul style="line-height:1.9;"><li>활성화 필수 드라이버 경로:</li></ul>
 <p>Device Drivers -&gt; Input device support -&gt; Event interface (이벤트 장치 인터페이스 생성)</p>
-<p>Device Drivers -&gt; Input device support -&gt; Keyboards -&gt; Nuvoton Key support (누보톤 온보드 키 GPIO 인터페이스 연결)</p>
+<p>Device Drivers -&gt; Input device support -&gt; Keyboards -&gt; Nuvoton keys support (누보톤 온보드 키 GPIO 인터페이스 연결)</p>
 <p>설정을 Save 한 뒤 Exit 합니다.</p>
 <p><a href="https://github.com/OpenNuvoton/buildroot_2024">GitHub - OpenNuvoton/buildroot_2024: Buildroot 2024.02</a></p>
-<h3>4) 디바이스 트리(DTS) 상의 I2C 드라이버 스펙 조정 (Chili 보드 전용)</h3>
-<p>Chili 보드의 경우 기본적으로 I2C 버스가 꺼져 있으므로 디바이스 트리 소스를 찾아 핀 컨트롤 상태를 활성화해야 합니다.</p>
-<p>수정 파일: output/build/linux-custom/arch/arm/boot/dts/nuc980-chili.dts</p>
+<h3>4) 디바이스 트리(DTS) 상의 I2C 드라이버 스펙 조정</h3>
+<p>Chili 보드의 경우 기본적으로 I2C 버스가 꺼져 있으므로(i2c1 status = "disabled") 디바이스 트리 소스를 찾아 핀 컨트롤 상태를 활성화해야 합니다. nuc980-iot-v1.0.dts·nuc980-iot-g2-v1.0.dts 의 i2c1 도 status = "disabled" 로 되어 있습니다.</p>
+<p>수정 파일: 커널 소스의 arch/arm/boot/dts/nuc980-chili.dts</p>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>i2c1: i2c1@b0081000 {
     status = "okay";
     pinctrl-0 = &lt;&amp;pinctrl_i2c1_PB&gt;;
@@ -50,17 +51,15 @@ naver_logno: 224338064223
 <h3>5) 시스템 이미지 최종 빌드</h3>
 <p>설정이 완료되었으면 크로스 컴파일러를 가동하여 타겟 리눅스 커널 및 RootFS를 제작합니다.</p>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>$ make</code></pre>
-<p>빌드가 완료되면 output/images/ 디렉토리에 부팅 가능한 커널 이미지와 루프 백 이미지가 생성됩니다.</p>
+<p>빌드가 완료되면 output/images/ 디렉토리에 커널 이미지(uImage)와 루트 파일 시스템 이미지(Chili: JFFS2, IIoT: UBI)가 생성됩니다.</p>
 <h2>4. C 기반 MQTT 클라이언트 애플리케이션 작성</h2>
 <p>빌드된 툴체인 환경의 크로스 컴파일 환경 변수를 로드한 후, Paho 라이브러리를 바인딩하여 MQTT 송수신 어플리케이션(rcdemo.c)을 작성하고 컴파일합니다.</p>
 <h3>1) 환경 변수 세팅 및 컴파일 명령어</h3>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>// 1. 크로스 컴파일러 경로 및 환경 변수 자동 바인딩
 $ source ./buildroot_2024/output/host/environment-setup
 // 2. rcdemo.c 파일 빌드 (정적 링킹으로 libpaho-mqtt3c 내장)
-// NuMaker-IIoT-NUC980 보드용 빌드
 $ $CC rcdemo.c -o rcdemo -Ibuildroot_2024/output/staging/usr/include -Lbuildroot_2024/output/staging/usr/lib -Wl,-Bstatic -lpaho-mqtt3c -Wl,-Bdynamic
-// NuMaker-RTU-NUC980 (Chili) 보드용 빌드 (-DNUMAKER_BOARD=2 식별자 정의)
-$ $CC rcdemo.c -o rcdemo -DNUMAKER_BOARD=2 -Ibuildroot_2024/output/staging/usr/include -Lbuildroot_2024/output/staging/usr/lib -Wl,-Bstatic -lpaho-mqtt3c -Wl,-Bdynamic</code></pre>
+</code></pre>
 <h3>2) 핵심 C 소스 코드 구조 및 MQTT 전송 알고리즘</h3>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>#include &lt;stdio.h&gt;
 #include &lt;stdlib.h&gt;
@@ -83,12 +82,12 @@ MQTTClient client;
 
 int messageArrived(void *context, char *topicName, int topicLen, MQTTClient_message *message) {
     char* payload = (char*)message-&gt;payload;
-    printf("Message arrived on topic: %s, payload: %s\n", topicName, payload);
-    // LED 제어용 GPIO 드라이버 연결 (sysfs 또는 gpiod 제어 예시)
+    printf("Message arrived on topic: %s, payload: %.*s\n", topicName, message-&gt;payloadlen, (char*)message-&gt;payload);
+    // LED3(PB8, NuMaker-IIoT-NUC980) 제어: GPIO sysfs 사용 (사전에 echo 40 &gt; /sys/class/gpio/export, echo out &gt; /sys/class/gpio/gpio40/direction 필요)
     if (strcmp(payload, "ON") == 0) {
-        system("echo 1 &gt; /sys/class/leds/led3/value"); // LED 켜기
+        system("echo 1 &gt; /sys/class/gpio/gpio40/value"); // PB8 출력 High
     } else {
-        system("echo 0 &gt; /sys/class/leds/led3/value"); // LED 끄기
+        system("echo 0 &gt; /sys/class/gpio/gpio40/value"); // PB8 출력 Low
     }
     MQTTClient_freeMessage(&amp;message);
     MQTTClient_free(topicName);
@@ -118,8 +117,8 @@ int main(int argc, char* argv[]) {
     pubmsg.qos = 1;
     pubmsg.retained = 0;
     MQTTClient_publishMessage(client, TOPIC_STATUS, &amp;pubmsg, NULL);
-    printf("MQTT Client is running. Press Q to exit.\n");
-    // 이외 버튼 감지 스레드 및 온도 센서(MAX31875) 폴링 루프 가동
+    printf("MQTT Client is running.\n");
+    // 이외 버튼 감지 스레드 및 온도 센서 폴링 루프 가동
     while(1) {
         // 주기적인 센서값 전송 또는 이벤트 대기 루프
         sleep(5);
@@ -129,12 +128,11 @@ int main(int argc, char* argv[]) {
     return rc;
 }</code></pre>
 <h2>5. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
-<h3>네트워크 순시 차단에 따른 세션 끊김 리스크</h3>
-<p>모바일 공유기나 불안정한 산업용 Wi-Fi 환경에 게이트웨이가 물린 경우, TCP 커넥션 해제로 인한 오프라인 상태가 장기 방치될 수 있습니다. MQTT 연결 실패 콜백(connectionLost)을 선언하고 내부 루프에서 MQTTClient_connect를 사용해 지수 백오프(Exponential Backoff) 방식의 재연결 로직을 필히 가미해야 장비 먹통을 예방할 수 있습니다.</p>
-<h3>SD Card / Flash 마모 위험</h3>
-<p>Linux OS가 동작하며 다양한 시스템 저널 로그(/var/log/syslog 등)를 계속 낸드 플래시 메모리에 쓰면 수명이 단축되어 배드 섹터로 인한 부팅 에러가 납니다. Buildroot 설정에서 임시 로그 및 런타임 저장 경로를 물리 영역이 아닌 램 디스크(tmpfs)에 마운트하여 운용하십시오.</p>
-<h2>6. 참고 자료 및 레퍼런스 (References)</h2>
-<p>본 아티클은 누보톤 공식 커뮤니티의 NUC980 원격 제어 데모 기술 자료 및 깃허브 오픈소스 빌드루트 도구(buildroot_2024) 프로젝트를 바탕으로 작성되었습니다. 또한 NUC980 Linux 커널 개발 가이드의 사양을 교차 검증하여 FAE 관점에서 정리한 기술 문서입니다.</p>
+<h3>브로커 연결 끊김 처리</h3>
+<p>MQTTClient_setCallbacks()로 연결 끊김 콜백(MQTTClient_connectionLost)을 등록하면, 클라이언트가 서버와의 연결을 잃었을 때 클라이언트 라이브러리가 이 콜백을 호출합니다. 애플리케이션은 이 콜백에서 재연결 시도나 문제 보고 같은 적절한 조치를 해야 합니다. 위 예제 코드는 이 콜백 자리에 NULL을 넘기고 있습니다.</p>
+<h3>로그 저장 위치</h3>
+<p>누보톤 NUC980용 Buildroot 설정(nuvoton_nuc980_iot / iot_g2 / chili defconfig)은 기본 루트 파일 시스템 스켈레톤을 사용하며, 이 스켈레톤에서 /var/log 는 ../tmp 를 가리키는 심볼릭 링크입니다. /tmp 는 IIoT 설정에서는 tmpfs, Chili 설정에서는 ramfs 로 마운트됩니다.</p>
+
 <hr>
 <p>💡</p>
 <p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>

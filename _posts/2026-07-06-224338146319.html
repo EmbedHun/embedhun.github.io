@@ -7,49 +7,40 @@ naver_logno: 224338146319
 ---
 {% raw %}
 <h2>1. 개요 및 배경</h2>
-<p>임베디드 제품의 대량 생산 라인이나 공장 자동 구동 펌웨어 테스트 환경에서는 마우스로 매번 버튼을 눌러야 하는 GUI 프로그램(ICP Tool) 대신, 백그라운드에서 배치 파일이나 명령행 스크립트로 동작하는 CLI(Command Line Interface) 방식의 프로그래밍 유틸리티가 필수적입니다.</p>
-<p>누보톤은 이를 지원하기 위해 NuLink.exe 실행 프로그램을 Nu-Link Command Tool 패키지에 포함시켜 제공하고 있습니다.</p>
-<p>하지만 생산 라인 세팅 단계에서 가장 빈번하게 발생하는 골칫거리 장애는 바로 "NuLink와 연결된 대상 IC 칩을 찾을 수 없습니다.(Cannot find target IC chip connect with NuLink.!!!)"라는 CLI 연결 실패 에러입니다.</p>
-<p>동일한 Nu-Link 프로그래머와 똑같은 보드를 연결한 상태에서 GUI 기반의 NuMicro ICP Programming Tool은 칩을 백발백중으로 올바르게 감지하는데, 오직 커맨드 라인 프로그램만 타겟 칩을 인식하지 못하고 프로그램을 정지해 버립니다.</p>
-<p>이 가이드북은 이 오류가 나타나는 대표 사례와 해결 방법, 그리고 매뉴얼의 명령 형식에 맞춘 양산 자동 굽기 배치 스크립트 구성을 정리합니다.</p>
+<p>누보톤 Nu-Link Command Tool 은 Nu-Link 어댑터를 통해 NuMicro MCU 의 플래시를 소거·프로그램·덤프하는 Win32 콘솔 프로그램으로, 이를 이용하면 GUI 프로그램(ICP Tool) 대신 배치 파일로 사용자 맞춤 플래시 프로그래밍 도구를 만들 수 있습니다.</p>
+<p>Command Tool 의 실행 파일은 NuLink.exe 입니다.</p>
+<p>하지만 CLI 에서 "NuLink와 연결된 대상 IC 칩을 찾을 수 없습니다.(Cannot find target IC chip connect with NuLink.!!!)"라는 연결 실패 에러가 나는 경우가 있습니다.</p>
+<p>GUI 기반의 NuMicro ICP Programming Tool 은 칩을 정상 인식하는데 Command Tool 만 이 에러를 출력하는 경우입니다.</p>
+<p>이 가이드북은 이 오류가 보고된 사례와 해결 방법, 그리고 매뉴얼의 명령 형식에 맞춘 배치 스크립트 구성을 정리합니다.</p>
 <h2>2. 문제 발생 원인 (Command Tool 버전 문제)</h2>
 <p>Nuvoton 포럼에는 N76E003 에서 GUI 인 NuMicro ICP Programming Tool V2.01.6592 는 칩을 정상 인식하는데, Nu-Link Command Tool V2.01.6592 는 "Cannot find target IC chip connect with NuLink.!!!" 를 출력하는 사례가 보고되어 있습니다.</p>
 <p>이 사례에서 Nuvoton 담당자는 홈페이지에 올라온 최신 Command Tool 인 V2.02.6629 로 확인해 보도록 안내했습니다.</p>
-<p>따라서 GUI 에서는 칩이 잡히는데 CLI 에서만 타겟을 찾지 못한다면, 사용 중인 Command Tool 의 버전부터 확인하는 것이 순서입니다.</p>
+<p>같은 증상이라면 이 사례의 안내대로 최신 Command Tool 로 확인해 볼 수 있습니다.</p>
 <h2>3. 실무 해결 프로시저 (Command Tool 버전 업그레이드)</h2>
-<p>Command Tool 을 최신 버전으로 올려 칩 인식 실패 오류를 해결하는 방법입니다.</p>
+<p>Command Tool 을 최신 버전으로 올려 칩 인식 여부를 확인하는 방법입니다.</p>
 <p>1. 현재 설치된 Command Tool 의 설치 경로와 버전을 확인합니다. 기본 설치 경로는 아래와 같습니다.</p>
 <ul style="line-height:1.9;"><li>Command Tool 기본 설치 경로: C:\Program Files\Nuvoton Tools\NuLink Command Tool</li><li>실행 파일: 위 폴더의 NuLink.exe (명령 프롬프트에서 해당 폴더로 이동해 NuLink.exe 를 실행하면 도움말이 표시됩니다)</li></ul>
 <ol start="2" style="line-height:1.9;"><li>누보톤 홈페이지에서 최신 버전의 Nu-Link Command Tool 을 내려받습니다. (포럼 사례에서는 V2.02.6629 로 확인하도록 안내되었습니다.)</li><li>기존 Command Tool 을 새 버전으로 교체(재설치)한 뒤, 다시 NuLink.exe 로 칩이 인식되는지 확인합니다.</li></ol>
 <p>버전을 올린 뒤에도 CLI 에서만 인식이 되지 않으면, 아래 4장의 명령 형식에 맞게 작성했는지와 Nu-Link ID 지정 여부를 함께 확인하십시오.</p>
 <h2>4. 배치 파일 기반 자동 다운로드 명령어 구성 가이드</h2>
-<p>최신 버전으로 교체한 상태에서 N76E003 8051 칩의 APROM과 CONFIG를 일괄 소거 및 다운로드하는 실무 양산 배치 스크립트(.bat) 예제입니다. 명령 형식은 NuLink [Nu-Link ID] [옵션] [섹션] [파일/값] 입니다.</p>
+<p>최신 버전으로 교체한 상태에서 N76E003 8051 칩의 APROM과 CONFIG를 일괄 소거 및 다운로드하는 배치 스크립트(.bat) 예제입니다. 명령 형식은 NuLink [Nu-Link ID] [옵션] [섹션] [파일/값] 입니다.</p>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>@echo off
 set TOOL_PATH="C:\Program Files\Nuvoton Tools\NuLink Command Tool\NuLink.exe"
-echo [1단계] CONFIG0 값 읽기 (타겟 연결 확인)
+echo [1단계] CONFIG0 값 읽기
 %TOOL_PATH% -r CFG0
-if %errorlevel% neq 0 goto :FAIL
 echo [2단계] 타겟 칩 플래시 완전 소거 (Chip Erase)
 %TOOL_PATH% -e all
-if %errorlevel% neq 0 goto :FAIL
 echo [3단계] 펌웨어 이진 파일 다운로드 (APROM)
 %TOOL_PATH% -w APROM firmware.bin
-if %errorlevel% neq 0 goto :FAIL
 echo [4단계] 하드웨어 CONFIG 레지스터 설정
 rem 8051 은 CONFIG 바이트들을 합쳐 32비트 값으로 지정합니다 (CFG0 = Config3:Config2:Config1:Config0, CFG1 = Config4). 아래 값은 예시이므로 실제 설정값으로 바꿔 사용하십시오.
 %TOOL_PATH% -w CFG0 0xFF67FBDB
 %TOOL_PATH% -w CFG1 0xFFFFFF5F
-if %errorlevel% neq 0 goto :FAIL
-echo [성공] 펌웨어 다운로드 완료!
-pause
-exit
-:FAIL
-echo [에러] 통신 또는 다운로드 과정 중 실패가 발생했습니다!
-pause
-exit</code></pre>
+echo [완료] 모든 단계를 실행했습니다. 각 단계의 결과는 위 출력에서 확인하십시오.
+pause</code></pre>
 <h2>5. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
-<h3>펌웨어 버전 및 하드웨어 Nu-Link ID 매칭 오류</h3>
-<p>여러 대의 Nu-Link 프로그래머를 단일 PC에 연결하여 다중 굽기(Multi-programming) 자동화 환경을 구축하는 경우, Nu-Link ID 를 지정하지 않으면 명령이 동작하지 않을 수 있습니다. 배치 파일에서 NuLink 0x12345678 -w APROM firmware.bin 처럼 Nu-Link ID 를 지정하거나, 연결된 모든 타겟에 같은 작업을 하려면 NuLink all_nulink -w APROM firmware.bin 형식을 사용하십시오. 또한 ICP 툴로 연결할 때 Nu-Link 펌웨어와 드라이버 버전이 맞지 않으면 갱신 대화상자가 나타나므로, 양산 전에 GUI 툴로 한 번 연결해 갱신을 마쳐 두는 것이 안전합니다.</p>
+<h3>펌웨어 버전 및 Nu-Link ID 지정</h3>
+<p>여러 대의 Nu-Link 프로그래머를 한 PC 에 연결한 경우, 배치 파일에서 NuLink 0x12345678 -w APROM firmware.bin 처럼 Nu-Link ID 를 지정해 특정 Nu-Link 를 제어하거나, 연결된 모든 Nu-Link 에 같은 작업을 하려면 NuLink all_nulink -w APROM firmware.bin 형식을 사용하십시오(이때 연결된 타겟 칩은 모두 같은 파트 번호여야 합니다). 또한 ICP 툴로 연결할 때 Nu-Link 펌웨어와 드라이버 버전이 맞지 않으면 갱신 대화상자가 나타납니다.</p>
 <h3>CLI 스크립트 내 옵션 및 섹션 이름 지정 방식</h3>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>NuLink 의 섹션 이름(APROM, LDROM, CFG0 등)은 대소문자를 구분하지 않습니다. 반면 칩 이름을 지정하는 -t 같은 옵션은 NuLink 옵션 목록에 없으므로 사용하지 마십시오. 배치 파일에는 NuLink 도움말에 나오는 옵션(-e, -w, -r, -v, -reset 등)만 사용하십시오.</code></pre>
 <h2>6. 참고 자료 및 레퍼런스 (References)</h2>

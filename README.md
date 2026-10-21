@@ -11,7 +11,6 @@ Nuvoton MCU/MPU 를 다루면서 직접 확인한 내용을 적는 기술 노트
 - [MA35D1 부트 헤더(header.bin) 만들기 - NuWriter Convert 사용법](https://embedhun.github.io/posts/224440257818/)
 - [NuWriter Pack/Unpack 사용법 - MA35D1 이미지 여러 개를 pack.bin 하나로 묶기](https://embedhun.github.io/posts/224440182654/)
 - [NuWriter DDR 설정 방법 - MA35D1 Attach 전에 DDR 초기화 파일 고르기](https://embedhun.github.io/posts/224440161761/)
-- [[Edge AI] NuMicro M55M1 MCU 기반 실시간 제스처 인식 카메라 구현 가이드](https://embedhun.github.io/posts/224340448765/)
 - [[임베디드 디버깅] Cortex-M55/M85 ITCM 코드 실행 시 디버거 C 소스 코드 매핑 불일치 해결 방안](https://embedhun.github.io/posts/224340435734/)
 - [[임베디드 프로젝트] Nuvoton N76S003 MCU 기반 비접촉식 엔진 타코미터(RPM 측정기) 제작 가이드](https://embedhun.github.io/posts/224340434682/)
 - [[DIY] 3,000원으로 자작하는 OLED 미니 오실로스코프 제작 가이드](https://embedhun.github.io/posts/224340407250/)
@@ -33,8 +32,6 @@ Nuvoton MCU/MPU 를 다루면서 직접 확인한 내용을 적는 기술 노트
 - [[기술 가이드] 누보톤 MCU에서 ADC 입력 전압이 VREF를 초과할 때의 영향 및 내부 VREF 설정법](https://embedhun.github.io/posts/224338098539/)
 - [[기술 가이드] MA35D1 고성능 MPU의 고속 UART(6+ Mbps) 안정화 및 설정 가이드](https://embedhun.github.io/posts/224338065031/)
 - [[기술 가이드] NUC980 Embedded Linux 환경에서 C 및 Paho MQTT 기반 IoT 원격 제어 구축](https://embedhun.github.io/posts/224338064223/)
-- [[기술 가이드] 누보톤 MG51FB9AE 기반 7세그먼트 디스플레이 멀티플렉싱 고스팅(Ghosting) 원인 분석 및 해결 가이드](https://embedhun.github.io/posts/224338063290/)
-- [입력 전압이 ADC의 VREF를 초과하면 어떻게 되나요?](https://embedhun.github.io/posts/224337844355/)
 - [Nuvoton 크리스탈리스 USB 솔루션 – 컴팩트하고 슬림한 제품을 위한 최고의 프로모터](https://embedhun.github.io/posts/224337843536/)
 
 ## 저장소 메모

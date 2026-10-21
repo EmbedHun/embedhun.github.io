@@ -1,21 +1,21 @@
 ---
 layout: post
-title: "[임베디드 프로젝트] Nuvoton N76S003 MCU 기반 비접촉식 엔진 타코미터(RPM 측정기) 제작 가이드"
+title: "[임베디드 프로젝트] Nuvoton N76S003 MCU 기반 엔진 타코미터(RPM 측정기) 제작 가이드"
 date: 2026-07-08 09:00:00 +0900
-description: "Nuvoton의 8비트 고성능 MCU인 N76S003(또는 N76E003)을 활용하여 자동차나 모터 기기 등의 회전수를 측정하는 비접촉식 엔진 타코미터(RPM 측정기) 오픈소스 프로젝트 가이드를 소개합니다."
+description: "Nuvoton의 8비트 MCU인 N76S003(또는 N76E003)을 활용하여 회전수를 측정하는 엔진 타코미터(RPM 측정기) 제작 가이드를 소개합니다."
 naver_logno: 224340434682
 ---
 {% raw %}
-<p>Nuvoton의 8비트 고성능 MCU인 N76S003(또는 N76E003)을 활용하여 자동차나 모터 기기 등의 회전수를 측정하는 비접촉식 엔진 타코미터(RPM 측정기) 오픈소스 프로젝트 가이드를 소개합니다.</p>
-<p>본 프로젝트에서는 디스플레이 드라이버 칩 PT6961과 연동하여 정밀한 RPM 측정 제어를 구현하는 표준 C 소스코드와 FAE의 구현 분석 팁을 다룹니다.</p>
+<p>Nuvoton의 8비트 MCU인 N76S003(또는 N76E003)을 활용하여 회전수를 측정하는 엔진 타코미터(RPM 측정기) 제작 가이드를 소개합니다.</p>
+<p>본 글에서는 디스플레이 드라이버 칩 PT6961과 연동하는 RPM 측정기의 C 소스코드와 FAE의 구현 분석 팁을 다룹니다.</p>
 <p>---</p>
 <p>▷ 1. 하드웨어 시스템 개요</p>
-<p>* MCU: Nuvoton N76S003 / N76E003 (1T 8051 코어, 18.24MHz 내장 RC 클럭 지원, 18KB Flash, 1KB SRAM)</p>
-<p>* 디스플레이 드라이버: Princeton Technology PT6961 (SPI 계열 인터페이스 구동, FND 세그먼트 스캔 내장)</p>
-<p>* 센서 입력: 적외선 반사형 센서 또는 홀(Hall) 센서의 출력 핀을 MCU의 외부 캡처 입력 핀(IC0)에 연동.</p>
+<p>* MCU: Nuvoton N76S003 / N76E003 (1T 8051 코어, 16MHz 내장 RC 클럭 지원, 18KB Flash, 1KB SRAM)</p>
+<p>* 디스플레이 드라이버: Princeton Technology PT6961 (Clock·Data Input·Data Output·Strobe 직렬 인터페이스, 1/7~1/8 duty LED 구동, 디스플레이 메모리·키 스캔 회로 내장)</p>
+<p>* 센서 입력: 센서의 출력 핀을 MCU의 외부 캡처 입력 핀(IC0)에 연동.</p>
 <p>---</p>
-<p>▷ 2. 깨진 기계번역 코드를 교정한 오리지널 표준 C 소스코드</p>
-<p>이하 코드는 기계 번역으로 훼손된 시스템 예약어(무효, 동안 등)를 C51 규격에 맞게 완벽하게 복구하고 가독성을 강화한 펌웨어 코드 소스입니다.</p>
+<p>▷ 2. C 소스코드</p>
+
 <p>`c</p>
 <p>#include &quot;numicro_8051.h&quot;</p>
 <p>#include &quot;PT6961.h&quot;</p>
@@ -30,17 +30,16 @@ naver_logno: 224340434682
 <p>uint16_t u16rev2stroke = 0;</p>
 <p>uint16_t u16swCount = 0;</p>
 <p>uint8_t u8mode = 0;</p>
-<p>/ [FAE 꿀팁] 외부 클럭 소스로 시스템 주파수 전환 (정밀 측정 보장) /</p>
+<p>// 외부 클럭 소스로 시스템 주파수 전환</p>
 <p>TA = 0xAA;</p>
 <p>TA = 0x55;</p>
-<p>CKEN |= 0xC0; // 외부 크리스탈 활성화</p>
+<p>CKEN |= 0xC0; // 외부 클럭 입력(XIN) 활성화</p>
 <p>// 외부 클럭이 안정화될 때까지 대기</p>
 <p>while(!(CKSWT &amp; 0x08));</p>
 <p>TA = 0xAA;</p>
 <p>TA = 0x55;</p>
 <p>CKSWT |= 0x02; // 외부 클럭 소스로 스위칭</p>
-<p>// 전환 완료 플래그 대기</p>
-<p>while(CKSWT &amp; 0x01);</p>
+
 <p>TA = 0xAA;</p>
 <p>TA = 0x55;</p>
 <p>CKEN &amp;= 0xDF; // 내부 고속 RC 클럭(HIRC) 비활성화 (전력 절감)</p>
@@ -71,11 +70,11 @@ naver_logno: 224340434682
 <p>}</p>
 <p>// RPM 실시간 연산 및 FND 세그먼트 전송 루틴</p>
 <p>if (u8mode == 0) {</p>
-<p>// 4스트로크 엔진: 1회전당 1펄스 감지 기준 계산</p>
+
 <p>u16rev4stroke = u16freq * 60;</p>
 <p>pt6961_display_number(u16rev4stroke);</p>
 <p>} else {</p>
-<p>// 2스트로크 엔진: 1회전당 2펄스 감지 기준 계산</p>
+
 <p>u16rev2stroke = (u16freq * 60) / 2;</p>
 <p>pt6961_display_number(u16rev2stroke);</p>
 <p>}</p>
@@ -85,11 +84,11 @@ naver_logno: 224340434682
 <p>`</p>
 <p>---</p>
 <p>▷ 3. FAE 기술 분석 노트</p>
-<p>1. 외부 클럭 스위칭: N76S003의 기본 내부 고속 RC 클럭(HIRC, 16MHz/22.118MHz)은 모터 열이나 외부 노이즈 환경에 따라 미세한 주파수 편차가 발생할 수 있습니다. 펄스의 간격을 정밀하게 계측해야 하는 타코미터 사양 상, 18.24MHz 또는 12MHz 외부 액티브 오실레이터를 연결하고 CKSWT 레지스터를 변경하여 신뢰성을 확보하는 것이 완벽한 양산 설계의 표준입니다.</p>
-<p>2. 타이머/카운터 최적화: 캡처 채널을 활용해 펄스 에지 간의 시간폭을 계측하거나 외부 인터럽트를 결합해 1초당 누적 펄스 카운트를 나누는 방식을 활용하면 모터의 초저속 회전부터 초고속 회전까지 정밀 틱 오차를 방지할 수 있습니다.</p>
+<p>1. 외부 클럭 스위칭: N76S003의 내부 고속 RC 클럭(HIRC, 16MHz)은 온도와 전압에 따라 주파수 편차가 있습니다(25°C·3.3V에서 ±1%, -20~105°C·2.4~5.5V에서 ±2%, -40~-20°C에서 ±4%). 펄스의 간격을 계측하는 타코미터에서는 18.24MHz 또는 12MHz 외부 액티브 오실레이터를 연결하고 CKEN·CKSWT 레지스터를 변경하여 시스템 클럭을 외부 클럭으로 전환할 수 있습니다.</p>
+<p>2. 타이머/카운터 최적화: 캡처 채널을 활용해 펄스 에지 간의 시간폭을 계측하거나 외부 인터럽트를 결합해 1초당 누적 펄스 카운트를 나누는 방식을 활용할 수 있습니다.</p>
 <p>---</p>
-<h2>Nuvoton N76S003 8비트 MCU 상세 데이터시트</h2>
-<p>- 바로가기 링크: <a href="https://www.nuvoton.com/products/microcontrollers/8bit-8051-mcus/n76s003-industrial-series/">https://www.nuvoton.com/products/microcontrollers/8bit-8051-mcus/n76s003-industrial-series/</a>■ OpenNuvoton 8051 패밀리 공식 BSP 저장소</p>
+<h2>Nuvoton N76S003 8비트 MCU 제품 페이지</h2>
+<p>- 바로가기 링크: <a href="https://www.nuvoton.com/products/microcontrollers/8bit-8051-mcus/n76s003-series/">https://www.nuvoton.com/products/microcontrollers/8bit-8051-mcus/n76s003-series/</a>■ OpenNuvoton N76E003 BSP 저장소</p>
 <p>- 바로가기 링크: <a href="https://github.com/OpenNuvoton/N76E003_BSP">https://github.com/OpenNuvoton/N76E003_BSP</a></p>
 <p><a href="https://github.com/OpenNuvoton/N76E003_BSP">GitHub - OpenNuvoton/N76E003_BSP: NuMicro N76E003 series 1T 8051 BSP for KEIL/IAR/NuEclipse</a></p>
 <p>---</p>

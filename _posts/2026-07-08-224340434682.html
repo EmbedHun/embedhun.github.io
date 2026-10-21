@@ -85,6 +85,12 @@ naver_logno: 224340434682
 <p>---</p>
 <p>▷ 3. FAE 기술 분석 노트</p>
 <p>1. 외부 클럭 스위칭: N76S003의 내부 고속 RC 클럭(HIRC, 16MHz)은 온도와 전압에 따라 주파수 편차가 있습니다(25°C·3.3V에서 ±1%, -20~105°C·2.4~5.5V에서 ±2%, -40~-20°C에서 ±4%). 펄스의 간격을 계측하는 타코미터에서는 18.24MHz 또는 12MHz 외부 액티브 오실레이터를 연결하고 CKEN·CKSWT 레지스터를 변경하여 시스템 클럭을 외부 클럭으로 전환할 수 있습니다.</p>
+<figure><img src="/assets/img/224340434682_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>N76S003 데이터시트 — 16 MHz 내부 고속 RC 발진기(HIRC) 특성표(Table 8.3-1)</p>
+<figure><img src="/assets/img/224340434682_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>N76S003 TRM — CKEN(Clock Enable) 레지스터</p>
+<figure><img src="/assets/img/224340434682_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>N76S003 TRM — CKSWT(Clock Switch) 레지스터</p>
 <p>2. 타이머/카운터 최적화: 캡처 채널을 활용해 펄스 에지 간의 시간폭을 계측하거나 외부 인터럽트를 결합해 1초당 누적 펄스 카운트를 나누는 방식을 활용할 수 있습니다.</p>
 <p>---</p>
 <h2>Nuvoton N76S003 8비트 MCU 제품 페이지</h2>

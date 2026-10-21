@@ -8,10 +8,14 @@ naver_logno: 224338145573
 {% raw %}
 <h2>1. 개요 및 배경</h2>
 <p>누보톤 M55M1 시리즈(Cortex-M55)는 64KB ITCM(Instruction Tightly Coupled Memory)과 128KB DTCM 을 내장하며, ITCM 은 0x00000000 번지(Secure 주소)부터 배치됩니다. Cortex-M7 기반 KM1M7 시리즈도 ITCM 을 가집니다.</p>
+<figure><img src="/assets/img/224338145573_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>M55M1 데이터시트 — Figure 6.4-13 SRAM Memory Organization과 Table 6.4-4 TCM 구성표</p>
 
 <p>이 글은 누보톤 M55M1 에서 ITCM 영역에 코드를 할당하는 링커 파일 구성과 Keil 디버그 초기화 파일(.ini) 설정을 다룹니다.</p>
 <h2>2. 로드 주소와 실행 주소</h2>
 <p>컴파일 시 ITCM 함수는 플래시 메모리(M55M1 은 0x00100000 번지부터)에 로드(Load)용 바이너리로 저장되고, 실행 주소는 ITCM(0x00000000 번지부터)으로 배정됩니다.</p>
+<figure><img src="/assets/img/224338145573_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>M55M1 데이터시트 — 6.4.4 System Memory Map(Table 6.4-2 앞부분)</p>
 <p>그 결과 실행 시점에 CPU의 프로그램 카운터(PC) 레지스터는 ITCM 주소 대역(0x00000000~0x0000FFFF)의 주소를 가리키고 동작하게 됩니다.</p>
 <h2>3. 링커 분산 파일(Linker Scatter File / .ld) 포지셔닝 설계</h2>
 <p>Keil ARMCLANG 컴파일러 환경에서 함수(Delay_Loop)를 ITCM 영역으로 할당하기 위한 링커 파일(.sct) 구조입니다.</p>

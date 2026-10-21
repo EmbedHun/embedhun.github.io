@@ -10,12 +10,18 @@ naver_logno: 224337843536
 <p>데이터 출처: Nuvoton Technology Corporation 마이크로컨트롤러 마케팅 및 애플리케이션 부서 부국장 Jason Tu</p>
 <p>USB 응용에는 정확한 48MHz 클록이 필요합니다.</p>
 <p>Nuvoton NUC121/125는 48MHz 내부 RC 발진기(HIRC)를 내장하고 있으며, PLL을 시스템 클록으로 쓰지 않고 32.768kHz 크리스털도 달지 않은 경우 USB 동기 모드로 HIRC를 자동 트림해 전 온도 범위에서 0.25% 편차 이내의 정확한 출력 주파수를 얻을 수 있습니다. 원래 크리스털용인 XT1_IN/XT1_OUT 핀(PF.1/PF.0)은 범용 I/O 핀으로도 쓸 수 있습니다.</p>
+<figure><img src="/assets/img/224337843536_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>NUC121/125 TRM — 6.2.8 Auto Trim(HIRC 자동 트림) 설명</p>
 <p>NUC121/125 시리즈는 USB 키보드·마우스, 게이밍 조이스틱 등의 응용 분야에 적합합니다.</p>
 <h3>Nuvoton Crystal-less USB 솔루션의 관련 MCU</h3>
 <h3>Nuvoton 크리스탈리스 USB 솔루션 응용 분야 - USB 키보드·마우스</h3>
 
 <h3>NUC121/125/126 기능</h3>
 <ul style="line-height:1.9;"><li>크리스탈리스 USB 전송 지원</li><li>SPROM 제공; SPROM 영역만 따로 잠가 보안 키나 핵심 기능 코드를 보호할 수 있습니다.</li><li>BPWM 최대 24채널(NUC121) / 23채널(NUC125) 지원(패키지에 따라 다름).</li><li>VAI(전압 조정 가능 인터페이스, NUC125) 지원; 개별 I/O를 1.8V~5.5V로 동작시켜 주변 부품과의 인터페이스 전압 차이를 맞추는 데 드는 추가 비용을 줄일 수 있습니다.</li></ul>
+<figure><img src="/assets/img/224337843536_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>NUC121/125 TRM — 6.4.4.4 SPROM(Security Protection Memory) 설명</p>
+<figure><img src="/assets/img/224337843536_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>NUC121/125 TRM — Key Features Support Table(Table 1.1-1)의 BPWM 채널 수</p>
 <hr>
 <p>💡</p>
 <p>👉 <a href="https://cafe.naver.com/nuvotonlab">https://cafe.naver.com/nuvotonlab</a></p>

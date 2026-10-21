@@ -9,12 +9,16 @@ naver_logno: 224338064223
 <h2>1. 개요 및 배경</h2>
 
 <p>NUC980 시리즈는 ARM926EJ-S 코어(최대 300MHz)를 탑재하고, LQFP 패키지 품번은 DDR2 SDRAM 128MB 또는 64MB를 내장합니다(품번에 따라 다름). 누보톤은 NUC980용 임베디드 리눅스(Embedded Linux) BSP를 제공합니다.</p>
+<figure><img src="/assets/img/224338064223_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>NUC980 데이터시트 — Key Features(ARM926EJ-S 코어, 내장 DDR2 SDRAM)</p>
 <p>이 가이드북은 누보톤의 공식 개발용 Buildroot 환경을 사용해 커널을 빌드하고, Paho MQTT C 라이브러리를 연동하여 보드의 입출력(GPIO, LED) 상태를 실시간 제어하는 IoT 클라이언트 펌웨어 스택 구축의 전체 프로시저를 설명합니다.</p>
 <h2>2. 하드웨어 환경 및 목표 아키텍처</h2>
 <p>본 데모의 대상 구성은 다음과 같습니다.</p>
 <ul style="line-height:1.9;"><li>대상 보드: NuMaker-IIoT-NUC980, NuMaker-IIoT-NUC980G2 및 NuMaker-RTU-NUC980 (Chili)</li><li>통신 채널: 온보드 이더넷(Ethernet) 포트 및 MQTT 프로토콜 (Broker: test.mosquitto.org)</li></ul>
 <h3>[시스템 구조 데이터 흐름]</h3>
 <p>Android IoT MQTT Panel (App) -&gt; MQTT Broker (test.mosquitto.org Port 1883) -&gt; NUC980 Embedded Linux (Ethernet) -&gt; LED3 (GPIO), K1 (Input Switch)</p>
+<figure><img src="/assets/img/224338064223_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>NuMaker-IIoT-NUC980 사용자 매뉴얼 — 사용자 표시 LED(LED3~LED5)와 GPIO 핀 표</p>
 <h2>3. Buildroot 및 Linux 커널 환경 구성 (Step-by-Step)</h2>
 <p>개발 PC에서 임베디드 Linux OS 이미지 컴파일 도구인 Buildroot를 복제하고 패키지를 추가 설정합니다.</p>
 <h3>1) 소스코드 복제 및 보드 설정 (Target Config)</h3>
@@ -35,6 +39,8 @@ $ cd buildroot_2024</code></pre>
 <p>설정을 Save 한 뒤 Exit 합니다.</p>
 <h3>3) 리눅스 커널 GPIO 및 키보드 입력 인터페이스 활성화</h3>
 <p>보드 상의 스위치(K1) 입력 이벤트를 리눅스 표준 입력 장치 시스템(/dev/input/event*)으로 읽어오기 위해 커널 드라이버를 활성화합니다.</p>
+<figure><img src="/assets/img/224338064223_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>NuMaker-IIoT-NUC980 사용자 매뉴얼 — 사용자 키 스위치(K1, K2)와 GPIO 핀 표</p>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>$ make linux-menuconfig</code></pre>
 <ul style="line-height:1.9;"><li>활성화 필수 드라이버 경로:</li></ul>
 <p>Device Drivers -&gt; Input device support -&gt; Event interface (이벤트 장치 인터페이스 생성)</p>

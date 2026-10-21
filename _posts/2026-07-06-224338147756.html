@@ -28,6 +28,8 @@ SIZE = arm-none-eabi-size</code></pre>
 <h3>[2. 타겟 프로젝트명 정의]</h3>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>TARGET = Nuvoton_M031_App</code></pre>
 <h3>[3. 누보톤 MCU 아키텍처 코어 옵션 지정 (Cortex-M0, Thumb 모드)]</h3>
+<figure><img src="/assets/img/224338147756_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>M031/M032 시리즈 데이터시트 — 6.1 Arm Cortex-M0 Core</p>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>MCU_FLAGS = -mcpu=cortex-m0 -mthumb</code></pre>
 <h3>[4. 컴파일러 최적화 및 디버그 기호 옵션 설정]</h3>
 <p>[기능 설명: -ffunction-sections 및 -fdata-sections는 미사용 함수/데이터를 링커가 잘라내도록 최적화]</p>

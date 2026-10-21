@@ -9,6 +9,8 @@ naver_logno: 224338065031
 <h2>1. 개요 및 배경</h2>
 
 <p>MA35D1 시리즈는 듀얼 Cortex-A35 코어를 탑재하며, 하드웨어 UART 는 최대 9.5 Mbps 보오레이트를 지원합니다. (9.5 Mbps 는 Bare-metal 비OS 코드 기준 검증 결과이며, 이 글의 Linux 구성은 6 Mbps 기준입니다)</p>
+<figure><img src="/assets/img/224338065031_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>MA35D1 TRM — 6.24.5.8 UART Function Mode 설명(UART 보오레이트 상한)</p>
 
 <ol style="line-height:1.9;"></ol>
 <p>이 가이드북은 리눅스 커널 드라이버의 FIFO 트리거 레벨 조정, 디바이스 트리(DTS) 클럭 소스 강제 정의, 그리고 C 코드 상에서 비표준 보오레이트(BOTHER ioctl) 설정을 통해 6 Mbps 시리얼 통신을 에러 없이 구동하는 실무 가이드를 제시합니다.</p>
@@ -21,8 +23,12 @@ naver_logno: 224338065031
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>+ // [MOD] FIFO 수신 트리거 임계치를 0x30(14바이트, 수신 버퍼가 더 찰 때까지 인터럽트 대기)으로 수정
 + serial_out(up, UART_REG_FCR, serial_in(up, UART_REG_FCR) | 0x30 | 0x20000);</code></pre>
 <p>참고: 트리거 레벨을 0x30으로 변경하면 수신 FIFO 에 14바이트가 쌓였을 때 수신 데이터 인터럽트 플래그(RDAIF)가 세트됩니다(기본값 0x10 은 4바이트).</p>
+<figure><img src="/assets/img/224338065031_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>MA35D1 TRM — UART_FIFO 레지스터와 RFITL 필드 설명(중간 생략)</p>
 <h3>2단계: 디바이스 트리(DTS) UART 부모 클럭 소스 변경</h3>
 <p>UART10 의 클럭 소스를 SYSCLK1 을 2분주한 시스템 클럭(SYSCLK1_DIV2)으로 지정합니다.</p>
+<figure><img src="/assets/img/224338065031_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>MA35D1 TRM — CLK_CLKSEL3 레지스터와 UART10SEL 필드 설명(중간 생략)</p>
 <p>수정 파일: arch/arm64/boot/dts/nuvoton/ma35d1.dtsi</p>
 <h3>수정 타겟: uart10 (사용할 UART 인스턴스에 맞춰 수정)</h3>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>uart10: serial@407A0000 {

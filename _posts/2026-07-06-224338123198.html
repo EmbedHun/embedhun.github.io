@@ -9,15 +9,23 @@ naver_logno: 224338123198
 <h2>1. 개요 및 배경</h2>
 <p>USB 2.0 Full Speed(12Mbps) 장치에는 USB 프로토콜이 요구하는 정밀한 주파수의 클럭이 필요합니다.</p>
 <p>외부 크리스탈을 쓸 경우, 발진 회로는 크리스탈 1개와 부하 커패시터 2개(C1, C2)로 구성됩니다.</p>
+<figure><img src="/assets/img/224338123198_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>M031/M032 데이터시트 — 8.4.3.1 Typical Crystal Application Circuits(Figure 8.4-3)</p>
 <p>이러한 외부 소자는 PCB 실장 면적과 부품 비용(BOM)을 늘립니다.</p>
 <p>누보톤은 외부 크리스탈 없이 내장 48MHz RC 발진기(HIRC)와 자동 트림(Auto-Trim) 기능을 이용하는 크리스탈리스 USB(Crystal-less USB) 기능을 제공합니다.</p>
 <p>이 가이드북은 누보톤 M031/M032 시리즈(USB 장치 기능은 M032 에만 있음)를 바탕으로 외부 크리스탈 없이 USB 통신을 구현하는 하드웨어 제어 원리와 클럭 트리 펌웨어 설정법을 설명합니다.</p>
 <h2>2. 하드웨어 동작 원리 (SOF 실시간 주파수 자동 트리밍)</h2>
 <p>내장 48MHz RC 발진기(HIRC)는 생산 단계에서 교정되며, 주파수 편차는 25°C·VDD 3.3V 에서 -1~1%, -40~105°C·VDD 1.8~3.6V 에서 -2~2% 입니다.</p>
+<figure><img src="/assets/img/224338123198_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>M031/M032 데이터시트 — Table 8.4-1 48 MHz 내장 RC 발진기(HIRC) 특성</p>
 <p>누보톤은 이 편차를 줄이기 위해 USB 호스트가 매 1ms 주기마다 전송하는 SOF(Start of Frame) 패킷 신호를 주파수 교정의 기준으로 삼습니다.</p>
 <h3>실시간 자동 교정(Auto-Trim) 알고리즘 흐름</h3>
 <ol style="line-height:1.9;"><li>USB 호스트가 매 1ms마다 타겟 보드에 SOF 패킷을 송신합니다.</li><li>MCU 내부의 자동 트림 회로는 USB 동기 모드(REFCKSEL=1)에서 기준 클럭과 HIRC 의 주파수 차이를 계산합니다.</li><li>계산은 기준 클럭 4·8·16·32 클럭 동안의 평균 주파수 차이를 바탕으로 하며, 몇 클럭을 쓸지는 LOOPSEL 필드로 고릅니다.</li><li>자동 트림 회로는 이 계산을 바탕으로 HIRC 트림 값을 갱신하고, HIRC 주파수가 48MHz 에 잠기면 FREQLOCK(SYS_HIRCTRIMSTS[0]) 이 1 이 됩니다. FREQLOCK 이 1 이면 HIRC 출력 주파수가 0.25% 편차 이내라는 뜻입니다.</li></ol>
+<figure><img src="/assets/img/224338123198_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>M031/M032 TRM — 6.3.9 IRC Auto Trim</p>
 <p>자동 트림이 동작하면 HIRC 출력 주파수는 전 온도 범위에서 0.25% 편차 이내로 맞춰집니다. 다만 트림을 시작하고, 오류(CLKERIF·TFAILIF)가 나면 트림을 끄는 일은 아래 코드처럼 소프트웨어가 맡습니다. 트림 값 갱신 횟수가 RETRYCNT 로 정한 한도(64·128·256·512회)에 이르도록 주파수가 잠기지 않으면 자동 트림이 꺼지고 FREQSEL 이 00 으로 지워집니다.</p>
+<figure><img src="/assets/img/224338123198_f04.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>M031/M032 TRM — SYS_HIRCTRIMCTL 레지스터(REFCKSEL·RETRYCNT·LOOPSEL·FREQSEL 필드 발췌)</p>
 <h2>3. BSP 기반 크리스탈리스 USB 클럭 펌웨어 구현법</h2>
 <p>누보톤 M031/M032 시리즈에서 내장 48MHz HIRC를 동작시키고, USB 컨트롤러를 연결하여 자동 트리밍(Auto-Trim) 기능을 활성화하는 C 코드 가이드입니다.</p>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>#include &lt;stdio.h&gt;

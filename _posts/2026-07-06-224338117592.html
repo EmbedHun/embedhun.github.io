@@ -10,10 +10,14 @@ naver_logno: 224338117592
 
 <p>누보톤은 8051 및 Cortex-M 시리즈 칩에 펌웨어를 기록할 수 있는 Nu-Link 어댑터와 공식 GUI 유틸리티인 ICP(In-Circuit Programming) Tool 을 제공하고 있습니다.</p>
 <p>하지만 ICP Tool 의 시스템 요구 사항은 윈도우(Windows) 7/10 이상입니다.</p>
+<figure><img src="/assets/img/224338117592_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Nuvoton ICP Tool 사용자 매뉴얼 — 2.1 System Requirements</p>
 
 <p>이 가이드북은 라즈베리파이의 GPIO 또는 아두이노를 ICP 프로그래머로 사용하여, 윈도우 OS 와 Nu-Link 없이도 리눅스 명령행(CLI) 환경에서 누보톤 8051 계열 칩셋에 펌웨어를 다운로드하고 타겟 칩 정보를 조회하는 오픈소스 솔루션 구축 방법을 제공합니다.</p>
 <h2>2. 하드웨어 결선 가이드 (ICP 5핀 헤더 구성)</h2>
 <p>프로그래밍을 시작하기 전, 프로그래머 역할을 하는 라즈베리파이 또는 아두이노와 타겟 8051 보드(N76E003, MS51 등) 사이의 5핀 신호선이 올바르게 연결되었는지 확인해야 합니다.</p>
+<figure><img src="/assets/img/224338117592_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>N76E003 데이터시트 — 29장 In-Circuit-Programming(ICP) 신호 핀 설명</p>
 <h3>신호 핀 맵 구성 및 연결 정보</h3>
 <ul style="line-height:1.9;"><li>VDD: 전원 핀 (타겟 보드에 3.3V 전원 인가)</li><li>GND: 그라운드 공통 접지</li><li>RST: 리셋 제어 신호선 (라즈베리파이 GPIO21 / 아두이노 13번 핀)</li><li>ICPCK: ICP 클럭 제어 신호선 (라즈베리파이 GPIO26 / 아두이노 12번 핀)</li><li>ICPDA: ICP 데이터 입출력 신호선 (라즈베리파이 GPIO20 / 아두이노 11번 핀)</li></ul>
 <h2>3. 파이썬 기반 오픈소스 라이브러리 설치 및 전제 조건</h2>
@@ -40,6 +44,8 @@ $ pip install -e .</code></pre>
 
 <h3>칩 잠금(Lock) 활성화에 따른 접근 차단</h3>
 <p>CONFIG0 의 LOCK 비트를 0 으로 기록해 칩 잠금을 활성화하면, 이후 병렬 라이터나 ICP 프로그래머로 읽은 Flash 내용은 모두 공백(FFH)으로 보이고 Flash 기록도 무효가 됩니다(IAP 기능은 영향을 받지 않습니다). CONFIG 바이트도 개별로 지우거나 기록할 수 없으며, 잠금을 해제하는 유일한 방법은 칩 전체 지우기(whole chip erase)입니다. 이때 Flash 의 모든 데이터와 CONFIG 비트가 함께 지워집니다. nuvo51icpy 에서는 -e(--mass-erase) 옵션으로 칩 전체를 지운 뒤 다시 기록합니다.</p>
+<figure><img src="/assets/img/224338117592_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>N76E003 데이터시트 — CONFIG0 레지스터와 LOCK 비트 설명</p>
 <h2>6. 참고 자료 및 레퍼런스 (References)</h2>
 <p>참고 자료: 누보톤 N76E003 데이터시트, nikitalita 의 NUMicro-8051-prog 프로젝트 README.</p>
 <hr>

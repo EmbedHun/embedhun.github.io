@@ -11,6 +11,8 @@ naver_logno: 224340407250
 <hr>
 <h2>▶ 1. N76E003 기반 미니 오실로스코프의 설계 구조</h2>
 <p>N76E003은 18KB Flash와 1KB SRAM(내부 RAM 256B + XRAM 768B)을 가진 8051 계열 MCU이며, 12비트 ADC(변환 속도 500ksps, 플래그 폴링 기준 샘플링 속도 380ksps)를 내장하고 있습니다.</p>
+<figure><img src="/assets/img/224340407250_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>N76E003 데이터시트 — ADC 전기적 특성표(Table 31-9)</p>
 <pre class="text" data-ke-language="text" data-ke-type="codeblock"><code>graph LR
 subgraph Signal Input
 A[Analog Signal Source] --&gt;|Over-Voltage Protection &amp; AC Coupling| B[ADC Channel 0: Pin 6]
@@ -48,6 +50,10 @@ Signal (빨간선) &lt;=======&gt;   P1.7 (AIN0 / ADC 채널 0)</code></pre>
 <h2>▶ 4. 핵심 소스코드 구조 및 펌웨어</h2>
 <p>펌웨어는 Nuvoton Keil C51 BSP 라이브러리를 기반으로 작성됩니다. 핵심은 타이머 인터럽트를 이용한 주기적 ADC 획득과 OLED에 점(Pixel)을 그리는 드라이버 코드입니다.</p>
 <h3>▷ 1단계: 타이머를 활용한 ADC 트리거 설정</h3>
+<figure><img src="/assets/img/224340407250_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>N76E003 데이터시트 — CKCON 레지스터의 T0M 비트 설명</p>
+<figure><img src="/assets/img/224340407250_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>N76E003 데이터시트 — 클럭 시스템 블록도(Figure 22.1-1)</p>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>void Init_Timer0(void)
 {
     TIMER0_MODE1_ENABLE; // 16비트 타이머 모드

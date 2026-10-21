@@ -6,7 +6,9 @@ description: "코드를 플래시(Flash)가 아닌 ITCM(Instruction Tightly-Coup
 naver_logno: 224340435734
 ---
 {% raw %}
-<p>코드를 플래시(Flash)가 아닌 ITCM(Instruction Tightly-Coupled Memory) 영역에 적재하면, 캐시를 거치지 않고 프로세서 속도로 결정적(deterministic)으로 실행합니다.</p>
+<p>코드를 플래시(Flash)가 아닌 ITCM(Instruction Tightly-Coupled Memory) 영역에 적재하면, 캐시 오버헤드 없이 프로세서 속도로 결정적(deterministic)으로 실행합니다.</p>
+<figure><img src="/assets/img/224340435734_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>AN0088 M55M1/M5531 Cache Coherence — 결론(5장)의 TCM 배치 항목</p>
 
 <p>이번 가이드에서는 Cortex-M55/M85(예: Nuvoton M55M1 시리즈) 코어 환경에서 ITCM에 코드를 적재해 실행할 때 점검할 항목을 정리합니다.</p>
 <p>---</p>
@@ -34,7 +36,11 @@ naver_logno: 224340435734
 
 <p>#### 2) I-Cache / D-Cache 동기화 처리 (Cache Coherency)</p>
 <p>M55M1의 Cortex-M55는 L1 캐시에 대한 하드웨어 일관성(coherency)을 제공하지 않으며, BSP는 기본으로 명령어 캐시(I-Cache)와 데이터 캐시(D-Cache)를 모두 켭니다.</p>
+<figure><img src="/assets/img/224340435734_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>AN0088 M55M1/M5531 Cache Coherence — 1장 개요</p>
 <p>실행 코드를 런타임에 SRAM으로 적재했다면, 그 주소의 코드를 실행하기 전에 I-Cache를 무효화해 이전에 캐시된 명령어를 버리도록 초기화 코드를 구축합니다.</p>
+<figure><img src="/assets/img/224340435734_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>AN0088 M55M1/M5531 Cache Coherence — 2.4 명령어 캐시의 일관성</p>
 <p>`c</p>
 <p>// CMSIS 캐시 유지 관리 API 활용</p>
 <p>SCB_CleanDCache();</p>

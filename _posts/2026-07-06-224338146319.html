@@ -19,11 +19,15 @@ naver_logno: 224338146319
 <h2>3. 실무 해결 프로시저 (Command Tool 버전 업그레이드)</h2>
 <p>Command Tool 을 최신 버전으로 올려 칩 인식 여부를 확인하는 방법입니다.</p>
 <p>1. 현재 설치된 Command Tool 의 설치 경로와 버전을 확인합니다. 기본 설치 경로는 아래와 같습니다.</p>
+<figure><img src="/assets/img/224338146319_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Nu-Link Command Tool 사용자 매뉴얼 — 3.1 Environment(기본 실행 파일 경로)</p>
 <ul style="line-height:1.9;"><li>Command Tool 기본 설치 경로: C:\Program Files\Nuvoton Tools\NuLink Command Tool</li><li>실행 파일: 위 폴더의 NuLink.exe (명령 프롬프트에서 해당 폴더로 이동해 NuLink.exe 를 실행하면 도움말이 표시됩니다)</li></ul>
 <ol start="2" style="line-height:1.9;"><li>누보톤 홈페이지에서 최신 버전의 Nu-Link Command Tool 을 내려받습니다. (포럼 사례에서는 V2.02.6629 로 확인하도록 안내되었습니다.)</li><li>기존 Command Tool 을 새 버전으로 교체(재설치)한 뒤, 다시 NuLink.exe 로 칩이 인식되는지 확인합니다.</li></ol>
 <p>버전을 올린 뒤에도 CLI 에서만 인식이 되지 않으면, 아래 4장의 명령 형식에 맞게 작성했는지와 Nu-Link ID 지정 여부를 함께 확인하십시오.</p>
 <h2>4. 배치 파일 기반 자동 다운로드 명령어 구성 가이드</h2>
 <p>최신 버전으로 교체한 상태에서 N76E003 8051 칩의 APROM과 CONFIG를 일괄 소거 및 다운로드하는 배치 스크립트(.bat) 예제입니다. 명령 형식은 NuLink [Nu-Link ID] [옵션] [섹션] [파일/값] 입니다.</p>
+<figure><img src="/assets/img/224338146319_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Nu-Link Command Tool 사용자 매뉴얼 — 2.3 Command Format과 2.3.2 Options 표</p>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>@echo off
 set TOOL_PATH="C:\Program Files\Nuvoton Tools\NuLink Command Tool\NuLink.exe"
 echo [1단계] CONFIG0 값 읽기
@@ -41,6 +45,8 @@ pause</code></pre>
 <h2>5. 임베디드 FAE 리스크 분석 및 예방 대책</h2>
 <h3>펌웨어 버전 및 Nu-Link ID 지정</h3>
 <p>여러 대의 Nu-Link 프로그래머를 한 PC 에 연결한 경우, 배치 파일에서 NuLink 0x12345678 -w APROM firmware.bin 처럼 Nu-Link ID 를 지정해 특정 Nu-Link 를 제어하거나, 연결된 모든 Nu-Link 에 같은 작업을 하려면 NuLink all_nulink -w APROM firmware.bin 형식을 사용하십시오(이때 연결된 타겟 칩은 모두 같은 파트 번호여야 합니다). 또한 ICP 툴로 연결할 때 Nu-Link 펌웨어와 드라이버 버전이 맞지 않으면 갱신 대화상자가 나타납니다.</p>
+<figure><img src="/assets/img/224338146319_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Nu-Link Command Tool 사용자 매뉴얼 — 2.3.1 Nu-Link ID</p>
 <h3>CLI 스크립트 내 옵션 및 섹션 이름 지정 방식</h3>
 <pre class="bash" data-ke-language="bash" data-ke-type="codeblock"><code>NuLink 의 섹션 이름(APROM, LDROM, CFG0 등)은 대소문자를 구분하지 않습니다. 반면 칩 이름을 지정하는 -t 같은 옵션은 NuLink 옵션 목록에 없으므로 사용하지 마십시오. 배치 파일에는 NuLink 도움말에 나오는 옵션(-e, -w, -r, -v, -reset 등)만 사용하십시오.</code></pre>
 <h2>6. 참고 자료 및 레퍼런스 (References)</h2>

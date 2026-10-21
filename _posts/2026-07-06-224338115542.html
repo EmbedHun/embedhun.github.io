@@ -9,6 +9,8 @@ naver_logno: 224338115542
 <h2>1. 개요 및 배경</h2>
 <p>누보톤 N76E003(18KB Flash)과 MS51 시리즈(8KB, 16KB 또는 32KB Flash)는 8비트 마이크로컨트롤러(MCU)입니다.</p>
 <p>하지만 Keil C51 컴파일러의 평가판(Evaluation) 버전은 오브젝트 코드 크기가 2KB로 제한됩니다. 2KB가 넘는 프로그램은 컴파일·어셈블·링크가 되지 않습니다.</p>
+<figure><img src="/assets/img/224338115542_f01.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>Nu-Link Driver for Keil 8051 사용자 매뉴얼 — Keil C51 평가판 제한 사항 부록</p>
 <p>이 문제를 우회하는 방법으로, 윈도우뿐만 아니라 리눅스 및 맥OS 환경에서도 쓸 수 있는 무료 오픈소스 컴파일러인 SDCC(Small Device C Compiler)와 VS Code 조합으로 8051 펌웨어를 빌드할 수 있습니다.</p>
 <p>이 가이드북은 누보톤의 표준 Keil C51 기반 BSP 소스코드를 오픈소스 컴파일러인 SDCC 규격으로 마이그레이션하기 위한 C 코드 문법 매핑 테이블과 핵심 이식 가이드라인을 제시합니다.</p>
 <h2>2. Keil C51과 SDCC 컴파일러 문법 변환 규격 (Syntax Mapping)</h2>
@@ -24,7 +26,9 @@ naver_logno: 224338115542
 <h3>상수 테이블 정의 (Flash 저장공간)</h3>
 <ul style="line-height:1.9;"><li>Keil C51: unsigned char code table[] = { ... };</li><li>SDCC: __code unsigned char table[] = { ... };</li></ul>
 <h2>3. BSP 헤더 파일 리팩토링 및 맵핑 기법</h2>
-<p>누보톤 공식 8051 BSP는 sfr 및 sbit 키워드로 레지스터를 정의한 헤더 파일(N76E003.h 또는 MS51_8K.h·MS51_16K.h·MS51_32K.h)을 제공합니다. 다른 컴파일러용으로 작성된 이런 헤더는 SDCC 와 호환되지 않으며, 특히 sfr P0 = 0x80; 구문은 SDCC 에서 경고 없이 P0 라는 변수에 0x80 을 대입하는 코드로 컴파일됩니다.</p>
+<p>누보톤 공식 8051 BSP는 sfr 및 sbit 키워드로 레지스터를 정의한 헤더 파일(N76E003.h 또는 MS51_8K.h·MS51_16K.h·MS51_32K.h)을 제공합니다. 다른 컴파일러용으로 작성된 이런 헤더는 SDCC 와 호환되지 않을 가능성이 크며, 특히 sfr P0 = 0x80; 구문은 SDCC 에서 경고 없이 P0 라는 변수에 0x80 을 대입하는 코드로 컴파일됩니다.</p>
+<figure><img src="/assets/img/224338115542_f02.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>SDCC 사용자 매뉴얼 — 3.5.1.7 __sfr / __sfr16 / __sfr32 / __sbit</p>
 <p>이 문제를 해결하기 위해 해외 오픈소스 라이브러리(N76E003-SDCC-BSP)는 누보톤 N76E003 BSP 를 SDCC 용으로 이식하여, 레지스터를 SDCC 문법(__sfr __at, __sbit __at)으로 직접 정의한 헤더를 제공합니다. Keil 과 SDCC 를 한 소스에서 함께 빌드해야 한다면, SDCC 에 포함된 compiler.h 처럼 컴파일러 매크로(SDCC 는 __SDCC 를 항상 정의)를 감지하여 레지스터 정의를 나누는 공용 헤더를 쓸 수 있습니다. 누보톤 N76E003 BSP v2.0 도 numicro_8051.h 에서 컴파일러 매크로에 따라 Keil·IAR·SDCC 용 헤더를 골라 포함합니다.</p>
 <h3>[Keil 및 SDCC 호환 헤더 파일 설계 구성 예시]</h3>
 <pre class="c" data-ke-language="c" data-ke-type="codeblock"><code>#ifdef __SDCC
@@ -72,6 +76,8 @@ void main(void)
 <h3>메모리 모델(Memory Model) 불일치로 인한 오작동</h3>
 <p>SDCC는 컴파일 시 기본적으로 Small 메모리 모델을 채택하며, 이때 주소 공간을 따로 지정하지 않은 변수는 내부 RAM 에 배치됩니다. 8051 아키텍처의 특성상 내부 직접 SRAM(data 영역)은 하위 128바이트에 불과하므로(N76E003 의 내부 SRAM 은 총 256바이트이며 상위 128바이트는 간접 주소 지정 영역입니다), 전역 변수나 지역 변수가 늘어나면 data 영역이 부족해질 수 있습니다. 메모리가 부족하거나 메모리 영역이 겹치면 링커가 경고나 오류를 내며, .map·.mem 파일에서 메모리 배치를 확인할 수 있습니다.</p>
 <p>변수가 많아질 경우 SDCC 컴파일 옵션에 --model-large를 지정하면, 주소 공간을 따로 지정하지 않은 변수(재진입 함수가 아니면 함수 인자와 지역 변수 포함)가 xdata 영역에 배치됩니다. 이 옵션을 쓰면 프로젝트의 모든 소스 파일을 같은 옵션으로 컴파일하고 링크할 때도 같은 옵션을 주어야 합니다. 서로 다른 메모리 모델로 컴파일한 모듈을 섞으면 결과를 예측할 수 없습니다.</p>
+<figure><img src="/assets/img/224338115542_f03.png" alt="" style="max-width:100%"><figcaption></figcaption></figure>
+<p>SDCC 사용자 매뉴얼 — 3.15.1.1 MCS51 메모리 모델(Small, Medium, Large, Huge)</p>
 <h3>어셈블리 인라인 구문 컴파일 오류</h3>
 <p>누보톤 공식 BSP 의 TA 보호 레지스터 해제 코드는 TA=0xAA; TA=0x55; 를 쓰는 C 매크로로 작성되어 있어 그대로 이식됩니다. 다만 achilikin 의 SDCC 이식본은 클럭 전환 레지스터처럼 TA 보호가 걸린 곳에서 SDCC 가 추가 명령을 끼워 넣어 보호가 깨지지 않도록 __asm__("orl _CKSWT,#0x20") 형식의 인라인 어셈블리를 사용합니다. Keil 은 #pragma ASM 으로, SDCC 는 __asm__("...") 또는 __asm ~ __endasm 구문으로 어셈블리를 감싸므로, 인라인 어셈블리가 있는 부분은 SDCC 형식으로 바꿔 주어야 정상 빌드가 가능합니다.</p>
 <h2>6. 참고 자료 및 레퍼런스 (References)</h2>
